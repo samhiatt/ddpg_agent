@@ -156,7 +156,7 @@ def create_animation(agent, every_n_steps=1, display_mode='gif', fps=30):
 
     if display_mode=='video' or display_mode=='video_file':
         from matplotlib.animation import FFMpegWriter
-        writer = FFMpegWriter()
+        writer = FFMpegWriter(fps=fps)
         if writer.isAvailable():
             print("Using ffmpeg at '%s'."%writer.bin_path())
         else:
@@ -167,7 +167,7 @@ def create_animation(agent, every_n_steps=1, display_mode='gif', fps=30):
         display(HTML(anim.to_html5_video()))
     elif display_mode=='video_file':
         filename = 'training_animation_%i.mp4'%int(datetime.now().timestamp())
-        img = anim.save(filename, writer=writer, fps=fps)
+        img = anim.save(filename, writer=writer)
         print("\rVideo saved to %s."%filename)
         import io, base64
         encoded = base64.b64encode(io.open(filename, 'r+b').read())
