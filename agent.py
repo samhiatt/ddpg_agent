@@ -7,8 +7,8 @@ import random
 import sys
 from collections import namedtuple, deque
 
-from models import Actor
-from models import Critic
+from ddpg_agent.models import Actor
+from ddpg_agent.models import Critic
 
 class DDPG():
     """Reinforcement Learning agent that learns using DDPG."""
