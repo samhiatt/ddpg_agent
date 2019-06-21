@@ -5,6 +5,8 @@ This reinforcement lerning model is a modified version of [Udacity's DDPG model]
 
 Solving OpenAI Gym's [MountainCarContinuous-v0](https://github.com/openai/gym/wiki/MountainCarContinuous-v0) continuous control problem with this model provides a particularly good learning example as its 2-dimensional continuous state space (position and velocity) and 1-dimensional continuous action space (forward, backward) are easy to visualize in two dimensions, lending to an intuitive understanding of hyperparameter tuning. 
 
+Project development began as a kaggle kernel. Initial code in this repo is based on [DDPG_OpenAI-MountainCarContinuous-V0 Version 74](https://www.kaggle.com/samhiatt/mountaincarcontinuous-v0-ddpg?scriptVersionId=16052313). 
+
 ## Usage
 See `Solving MountainCarContinuous-v0.ipynb` for an example of usage and a demo training visualization output. 
 
