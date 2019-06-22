@@ -70,6 +70,24 @@ class DDPG():
 
         # Algorithm parameters
         self.gamma = discount_factor  # discount factor
+        self.lr_actor = lr_actor
+        self.lr_critic = lr_critic
+        self.dropout_actor = dropout_actor
+        self.dropout_critic = dropout_critic
+        self.bn_momentum_actor = bn_momentum_actor
+        self.bn_momentum_critic = bn_momentum_critic
+        self.activation_fn_actor = activation_fn_actor
+        self.ou_mu=ou_mu
+        self.ou_theta=ou_theta
+        self.ou_sigma=ou_sigma
+        self.replay_buffer_size = replay_buffer_size
+        self.replay_batch_size = replay_batch_size
+        self.l2_reg_actor = l2_reg_actor
+        self.l2_reg_critic = l2_reg_critic
+        self.relu_alpha_actor = relu_alpha_actor
+        self.relu_alpha_critic = relu_alpha_critic
+        self.hidden_layer_sizes_actor = hidden_layer_sizes_actor
+        self.hidden_layer_sizes_critic = hidden_layer_sizes_critic
 
         self.tau_actor = tau_actor
         self.tau_critic = tau_critic
@@ -91,6 +109,24 @@ class DDPG():
         self.actor_local.model.summary()
         print("Critic model summary:")
         self.critic_local.model.summary()
+        print("Hyperparameters:")
+        print(str(dict(
+            train_during_episode=self.train_during_episode,
+            discount_factor=self.gamma,
+            tau_actor=self.tau_actor, tau_critic=self.tau_critic,
+            lr_actor=self.lr_actor, lr_critic=self.lr_critic,
+            bn_momentum_actor=self.bn_momentum_actor,
+            bn_momentum_critic=self.bn_momentum_critic,
+            ou_mu=self.ou_mu, ou_theta=self.ou_theta, ou_sigma=1,
+            activation_fn_actor=self.activation_fn_actor,
+            replay_buffer_size=self.replay_buffer_size,
+            replay_batch_size=self.replay_batch_size,
+            l2_reg_actor=self.l2_reg_actor, l2_reg_critic=self.l2_reg_critic,
+            relu_alpha_actor=self.relu_alpha_actor,
+            relu_alpha_critic=self.relu_alpha_critic,
+            dropout_actor=self.dropout_actor, dropout_critic=self.dropout_critic,
+            hidden_layer_sizes_actor=self.hidden_layer_sizes_actor,
+            hidden_layer_sizes_critic=self.hidden_layer_sizes_critic, )))
 
     def preprocess_state(self, state):
         obs_space = self.env.observation_space
