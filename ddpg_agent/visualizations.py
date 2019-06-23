@@ -69,10 +69,11 @@ def create_animation(agent, every_n_steps=1, display_mode='gif', fps=30):
 
     training_episode_ax = create_bottom_row_plot(1)
     training_episode_ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    # TODO: get axis names from q_a_grid_spec
     training_episode_position_line, = training_episode_ax.plot([], 'b-', label='position')
     training_episode_velocity_line, = training_episode_ax.plot([], 'm-', label='velocity')
-    training_episode_action_line, = training_episode_ax.plot([], 'g-', label='action')
-    training_episode_reward_line, = training_episode_ax.plot([], 'r-', label='reward')
+    training_episode_action_line, = training_episode_ax.plot([], 'r-', label='action')
+    training_episode_reward_line, = training_episode_ax.plot([], 'g-', label='reward')
     training_episode_ax.set_ylim((-1.1,1.1))
     training_episode_ax.axes.get_yaxis().set_visible(False)
 #     training_episode_ax.legend(loc='upper left', ncol=2)
@@ -81,8 +82,8 @@ def create_animation(agent, every_n_steps=1, display_mode='gif', fps=30):
     test_episode_ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     test_episode_position_line, = test_episode_ax.plot([], 'b-', label='position')
     test_episode_velocity_line, = test_episode_ax.plot([], 'm-', label='velocity')
-    test_episode_action_line, = test_episode_ax.plot([], 'g-', label='action')
-    test_episode_reward_line, = test_episode_ax.plot([], 'r-', label='reward')
+    test_episode_action_line, = test_episode_ax.plot([], 'r-', label='action')
+    test_episode_reward_line, = test_episode_ax.plot([], 'g-', label='reward')
     test_episode_ax.set_ylim((-1.1,1.1))
     test_episode_ax.axes.get_yaxis().set_visible(False)
     test_episode_ax.legend(loc='upper left', ncol=2, bbox_to_anchor=(-.5,-.1))
@@ -169,11 +170,14 @@ def create_animation(agent, every_n_steps=1, display_mode='gif', fps=30):
         filename = 'training_animation_%i.mp4'%int(datetime.now().timestamp())
         img = anim.save(filename, writer=writer)
         print("\rVideo saved to %s."%filename)
-        import io, base64
-        encoded = base64.b64encode(io.open(filename, 'r+b').read())
+        # import io, base64
+        # encoded = base64.b64encode(io.open(filename, 'r+b').read())
+        # display(HTML(data='''<video alt="training animation" controls loop autoplay>
+        #                 <source src="data:video/mp4;base64,{0}" type="video/mp4" />
+        #              </video>'''.format(encoded.decode('ascii'))))
         display(HTML(data='''<video alt="training animation" controls loop autoplay>
-                        <source src="data:video/mp4;base64,{0}" type="video/mp4" />
-                     </video>'''.format(encoded.decode('ascii'))))
+                        <source src="{0}" type="video/mp4" />
+                     </video>'''.format(filename)))
     else:
         filename = 'training_animation_%i.gif'%int(datetime.now().timestamp())
         img = anim.save(filename, dpi=80, writer='imagemagick')
