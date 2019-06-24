@@ -110,7 +110,6 @@ class Critic:
                  relu_alpha, l2_reg, dropout, hidden_layer_sizes,
                 ):
         """Initialize parameters and build model.
-
         Params
         ======
             state_size (int): Dimension of each state.
@@ -125,9 +124,13 @@ class Critic:
         self.state_size = state_size
         self.action_size = action_size
 
+#         assert len(hidden_layer_sizes)==2 \
+#             and len(hidden_layer_sizes[0])==len(hidden_layer_sizes[1]),\
+#             "Expected Critic's hidden_layer_sizes to be a list of two arrays of equal length."
         assert len(hidden_layer_sizes)==2 \
-            and len(hidden_layer_sizes[0])==len(hidden_layer_sizes[1]),\
-            "Expected Critic's hidden_layer_sizes to be a list of two arrays of equal length."
+            and hidden_layer_sizes[0][-1]==hidden_layer_sizes[1][-1], \
+            "Critic's hidden_layer_sizes should be a list of two arrays where the last element "+\
+            "of each array is equal to each other."
 
         # Initialize any other variables here
         self.learn_rate = learn_rate
