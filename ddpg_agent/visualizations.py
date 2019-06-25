@@ -3,7 +3,7 @@ import matplotlib.gridspec as gridspec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.animation import FuncAnimation
 from matplotlib.ticker import MaxNLocator
-from IPython.display import Image, HTML
+from IPython.display import Image, HTML, display
 from matplotlib import pyplot as plt
 import math
 from imageio_ffmpeg import get_ffmpeg_exe
