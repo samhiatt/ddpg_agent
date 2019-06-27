@@ -24,7 +24,9 @@ class DDPG():
                  relu_alpha_actor=.01, relu_alpha_critic=.01,
                  dropout_actor=0, dropout_critic=0,
                  hidden_layer_sizes_actor=[32,64,32],
-                 hidden_layer_sizes_critic=[[32,64],[32,64]], ):
+                 hidden_layer_sizes_critic=[[32,64],[32,64]],
+                 q_a_frames_spec=None,
+                ):
 
         self.env = env
         self.state_size = env.observation_space.shape[0]
@@ -95,8 +97,9 @@ class DDPG():
         # Training history
         self.training_scores = []
         self.test_scores = []
-        self.training_history = TrainingHistory(env)
-        self.q_a_frames_spec = Q_a_frames_spec(env)
+        self.history = TrainingHistory(env)
+#         self.q_a_frames_spec = Q_a_frames_spec(env, nx=16, ny=16, na=11, x_dim=0, y_dim=1, a_dim=0)
+        self.q_a_frames_spec = Q_a_frames_spec(env) if q_a_frames_spec is None else q_a_frames_spec
 
         # Track training steps and episodes
         self.steps = 0
@@ -131,8 +134,9 @@ class DDPG():
     def preprocess_state(self, state):
         obs_space = self.env.observation_space
         return np.array([
-            (state[i]-obs_space.low[i])/(obs_space.high[i]-obs_space.low[i])*2 - 1
-            for i in range(len(obs_space.low))])
+            state[i] if obs_space.low[i]==-float('inf') or obs_space.high[i]==float('inf') \
+            else (state[i]-obs_space.low[i])/(obs_space.high[i]-obs_space.low[i])*2 - 1
+            for i in range(self.state_size)])
 
     def reset_episode(self):
         self.noise.reset()
@@ -154,7 +158,7 @@ class DDPG():
         self.last_state = next_state
         self.steps += 1
 
-    def act(self, state=None, eps=0, verbose=False):
+    def act(self, state=None, eps=0, verbose=False, include_raw_actions=False):
         """Returns actions for given state(s) as per current policy."""
         if state is None:
             state = self.last_state
@@ -167,7 +171,10 @@ class DDPG():
         if verbose:
             print("State: (%6.3f, %6.3f), Eps: %6.3f, Action: %6.3f + %6.3f = %6.3f"%
                   (state[0][0], state[0][1], eps, action, noise_sample, res[0]))
-        return res  # add some noise for exploration
+        if include_raw_actions:
+            return res, action
+        else:
+            return res  # add some noise for exploration
 
     def learn(self, experiences):
         """Update policy and value parameters using given batch of experience tuples."""
@@ -221,19 +228,21 @@ class DDPG():
                              gen_q_a_frames_every_n_steps=gen_q_a_frames_every_n_steps )
             if run_tests is True:
                 self.run_episode(train=False, eps=0, action_repeat=action_repeat)
-            message = "Episode %i - epsilon: %.2f, memory size: %i, training score: %.2f"\
-                        %(self.episodes, eps, len(self.memory), self.training_history.training_episodes[-1].score)
-            if run_tests: message += ", test score: %.2f"%self.training_history.test_episodes[-1].score
+            last_training_episode = self.history.training_episodes[-1]
+            num_steps = last_training_episode.last_step - last_training_episode.first_step+1
+            message = "Episode %i - epsilon: %.2f, memory size: %i, num steps: %i, training score: %.2f"\
+                        %(self.episodes, eps, len(self.memory), num_steps, last_training_episode.score)
+            if run_tests: message += ", test score: %.2f"%self.history.test_episodes[-1].score
             print(message)
             sys.stdout.flush()
 
     def run_episode(self, action_repeat=1, eps=0, train=False, gen_q_a_frames_every_n_steps=0 ):
         next_state = self.reset_episode()
-        if train: episode_history = self.training_history.new_training_episode(self.episodes+1,eps)
-        else: episode_history = self.training_history.new_test_episode(self.episodes,eps)
+        if train: episode_history = self.history.new_training_episode(self.episodes+1,eps)
+        else: episode_history = self.history.new_test_episode(self.episodes,eps)
         q_a_frame = None
         while True:
-            action = self.act(next_state, eps=eps)
+            action, raw_action = self.act(next_state, eps=eps, include_raw_actions=True)
             sum_rewards=0
             # Repeat action `action_repeat` times, summing up rewards
             for i in range(action_repeat):
@@ -242,11 +251,11 @@ class DDPG():
                 if done:
                     break
             #sum_rewards = np.log1p(sum_rewards)
-            episode_history.append(self.steps, next_state, action, sum_rewards)
+            episode_history.append(self.steps, next_state, raw_action, action, sum_rewards)
             if train:
                 self.step(action, sum_rewards, next_state, done)
                 if gen_q_a_frames_every_n_steps > 0 and self.steps%gen_q_a_frames_every_n_steps==0:
-                    self.training_history.add_q_a_frame(self.get_q_a_frames())
+                    self.history.add_q_a_frame(self.get_q_a_frames())
             if done:
                 if train:
                     self.episodes += 1
@@ -426,38 +435,39 @@ class TrainingHistory:
             if g.step_idx>=step_idx:
                 return g
         return g
-    def append_training_step(self, step, state, action, reward):
-        """
-        Initialize EpisodeHistory with states, actions, and rewards
-        Params
-        ======
-            episode_idx (int): Episode index
-            step (int): Step index
-            state (list|array): State, array-like of shape env.observation_space.shape
-            action (list|array): Action, array-like of shape env.action_space.shape
-            reward (float): Reward, scalar value
-        """
-        if len(self.training_episodes)==0:
-            raise "No training episodes exist yet. "
-        self.training_episodes[-1].append(step, state, action, reward)
-        self.last_step = step
-        return self
-    def append_test_step(self, step, state, action, reward):
-        """
-        Initialize EpisodeHistory with states, actions, and rewards
-        Params
-        ======
-            episode_idx (int): Episode index
-            step (int): Step index
-            state (list|array): State, array-like of shape env.observation_space.shape
-            action (list|array): Action, array-like of shape env.action_space.shape
-            reward (float): Reward, scalar value
-        """
-        if len(self.test_episodes)==0:
-            raise "No test episodes exist yet. "
-        self.test_episodes[-1].append(step, state, action, reward)
-        self.last_step = step
-        return self
+#     def append_training_step(self, step, state, action, reward):
+#         """
+#         Initialize EpisodeHistory with states, actions, and rewards
+#         Params
+#         ======
+#             episode_idx (int): Episode index
+#             step (int): Step index
+#             state (list|array): State, array-like of shape env.observation_space.shape
+#             action (list|array): Action, array-like of shape env.action_space.shape
+#             reward (float): Reward, scalar value
+#         """
+#         if len(self.training_episodes)==0:
+#             raise "No training episodes exist yet. "
+#         self.training_episodes[-1].append(step, state, action, reward)
+#         self.last_step = step
+#         return self
+#     def append_test_step(self, step, state, action, reward):
+#         """
+#         Initialize EpisodeHistory with states, actions, and rewards
+#         Params
+#         ======
+#             episode_idx (int): Episode index
+#             step (int): Step index
+#             state (list|array): State, array-like of shape env.observation_space.shape
+#             action (list|array): Action, array-like of shape env.action_space.shape
+#             reward (float): Reward, scalar value
+#         """
+#         if len(self.test_episodes)==0:
+#             raise "No test episodes exist yet. "
+#         self.test_episodes[-1].append(step, state, action, reward)
+#         self.last_step = step
+#         return self
+
 
 class EpisodeHistory:
     """ Tracks the history for a single episode, including the states, actions, and rewards.
@@ -476,6 +486,7 @@ class EpisodeHistory:
         self.first_step = None
         self.last_step = None
         self.states = []
+        self.raw_actions = []
         self.actions = []
         self.rewards = []
 
@@ -484,9 +495,10 @@ class EpisodeHistory:
     def _get_score(self):
         return sum(self.rewards)
 
-    def append(self, step, state, action, reward):
+    def append(self, step, state, raw_action, action, reward):
         self.steps.append(step)
         self.states.append(state)
+        self.raw_actions.append(raw_action)
         self.actions.append(action)
         self.rewards.append(reward)
         if self.first_step is None: self.first_step = step

@@ -47,23 +47,6 @@ class Actor:
         # Batch Norm instead of input preprocessing (Since we don't know up front the range of state values.)
         #net = layers.BatchNormalization(momentum=self.bn_momentum)(states)
 
-#         net = layers.Dense(units=16, activation='relu')(states)
-#         net = layers.Dense(units=32, activation='relu')(net)
-#         net = layers.Dense(units=16, activation='relu')(net)
-
-#         net = layers.Dense(units=self.hidden_layer_sizes[0],
-#                            kernel_regularizer=regularizers.l2(l=self.l2_reg))(states)
-# #         net = layers.BatchNormalization(momentum=self.bn_momentum)(net)
-#         net = layers.LeakyReLU(alpha=self.relu_alpha)(net)
-#         net = layers.Dense(units=self.hidden_layer_sizes[1],
-#                            kernel_regularizer=regularizers.l2(l=self.l2_reg))(net)
-# #         net = layers.BatchNormalization(momentum=self.bn_momentum)(net)
-#         net = layers.LeakyReLU(alpha=self.relu_alpha)(net)
-#         net = layers.Dense(units=self.hidden_layer_sizes[2],
-#                            kernel_regularizer=regularizers.l2(l=self.l2_reg))(net)
-# #         net = layers.BatchNormalization(momentum=self.bn_momentum)(net)
-#         net = layers.LeakyReLU(alpha=self.relu_alpha)(net)
-
         # Add a hidden layer for each element of hidden_layer_sizes
         for size in self.hidden_layer_sizes:
             net = layers.Dense(units=size, kernel_regularizer=regularizers.l2(l=self.l2_reg))(net)
@@ -71,19 +54,18 @@ class Actor:
             if self.relu_alpha>0: net = layers.LeakyReLU(alpha=self.relu_alpha)(net)
             else: net = layers.Activation('relu')(net)
 
-
         if self.dropout>0: net = layers.Dropout(.2)(net)
 
         if self.bn_momentum>0: net = layers.BatchNormalization(momentum=self.bn_momentum)(net)
 
         if self.activation=='tanh':
             # Add final output layer with tanh activation with [-1, 1] output
-            actions = layers.Dense(units=self.action_size, activation=self.activation,
-                name='actions')(net)
+            raw_actions = layers.Dense(units=self.action_size, activation='tanh', name='raw_actions')(net)
+            actions = layers.Lambda(lambda x: ((x+1)/2. * self.action_range) + self.action_low,
+                name='actions')(raw_actions)
         elif self.activation=='sigmoid':
             # Add final output layer with sigmoid activation
-            raw_actions = layers.Dense(units=self.action_size, activation=self.activation,
-                name='raw_actions')(net)
+            raw_actions = layers.Dense(units=self.action_size, activation='sigmoid', name='raw_actions')(net)
             # Scale [0, 1] output for each action dimension to proper range
             actions = layers.Lambda(lambda x: (x * self.action_range) + self.action_low,
                 name='actions')(raw_actions)

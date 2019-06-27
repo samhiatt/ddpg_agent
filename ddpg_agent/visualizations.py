@@ -18,7 +18,7 @@ plt.rcParams['ytick.labelsize'] = 8
 plt.rcParams['axes.titlesize'] = 10
 
 def create_animation(agent, every_n_steps=1, display_mode='gif', fps=30):
-    history = agent.training_history
+    history = agent.history
     fig = plt.figure(figsize=(11,6))
     fig.set_tight_layout(True)
     main_rows = gridspec.GridSpec(2, 1, figure=fig, top=.9, left=.05, right=.95, bottom=.25)
