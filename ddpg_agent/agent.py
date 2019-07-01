@@ -174,7 +174,7 @@ class DDPG():
 
         # Learn, if enough samples are available in memory
         if len(self.memory) > self.batch_size and (self.train_during_episode or done):
-            experiences = self.memory.sample_standardized()
+            experiences = self.memory.sample_normalized()
             self.learn(experiences)
 
         # Roll over last state and action
@@ -190,7 +190,7 @@ class DDPG():
         if len(self.memory)==0:
             state = np.zeros(state.shape)
         else:
-            state = self.memory.standardize_state(state)
+            state = self.memory.normalize_state(state)
         action = self.actor_local.model.predict(np.reshape(state, [-1, self.state_size]))[0]
         noise_sample = self.noise.sample() * max(0,eps) # add some noise for exploration
         
