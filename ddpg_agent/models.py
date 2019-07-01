@@ -5,7 +5,8 @@ class Actor:
     """Actor (Policy) Model."""
 
     def __init__(self, state_size, action_size, action_low, action_high, learn_rate,
-                 activation_fn, bn_momentum, relu_alpha, l2_reg, dropout, hidden_layer_sizes):
+                 activation_fn, input_bn_momentum, bn_momentum, relu_alpha, l2_reg, 
+                 dropout, hidden_layer_sizes, activity_l2_reg, output_action_regularizer):
         """Initialize parameters and build model.
 
         Params
@@ -31,9 +32,12 @@ class Actor:
         # Initialize any other variables here
         self.learn_rate = learn_rate
         self.activation = activation_fn
+        self.input_bn_momentum = input_bn_momentum
         self.bn_momentum = bn_momentum
         self.relu_alpha = relu_alpha
         self.l2_reg = l2_reg
+        self.activity_l2_reg = activity_l2_reg
+        self.output_action_regularizer=output_action_regularizer
         self.dropout = dropout
         self.hidden_layer_sizes = hidden_layer_sizes
 
@@ -45,12 +49,12 @@ class Actor:
         net = states
 
         # Batch Norm instead of input preprocessing (Since we don't know up front the range of state values.)
-        #net = layers.BatchNormalization(momentum=self.bn_momentum)(states)
+        if self.input_bn_momentum>0: net = layers.BatchNormalization(momentum=self.input_bn_momentum)(states)
 
         # Add a hidden layer for each element of hidden_layer_sizes
         for size in self.hidden_layer_sizes:
             net = layers.Dense(units=size, kernel_regularizer=regularizers.l2(l=self.l2_reg))(net)
-            #net = layers.BatchNormalization(momentum=self.bn_momentum)(net)
+#             if self.input_bn_momentum>0: net = layers.BatchNormalization(momentum=self.input_bn_momentum)(net)
             if self.relu_alpha>0: net = layers.LeakyReLU(alpha=self.relu_alpha)(net)
             else: net = layers.Activation('relu')(net)
 
@@ -60,12 +64,14 @@ class Actor:
 
         if self.activation=='tanh':
             # Add final output layer with tanh activation with [-1, 1] output
-            raw_actions = layers.Dense(units=self.action_size, activation='tanh', name='raw_actions')(net)
+            raw_actions = layers.Dense(units=self.action_size, activation='tanh', name='raw_actions',
+                                       activity_regularizer=regularizers.l2(self.activity_l2_reg))(net)
             actions = layers.Lambda(lambda x: ((x+1)/2. * self.action_range) + self.action_low,
                 name='actions')(raw_actions)
         elif self.activation=='sigmoid':
             # Add final output layer with sigmoid activation
-            raw_actions = layers.Dense(units=self.action_size, activation='sigmoid', name='raw_actions')(net)
+            raw_actions = layers.Dense(units=self.action_size, activation='sigmoid', name='raw_actions',
+                                      activity_regularizer=regularizers.l2(self.activity_l2_reg))(net)
             # Scale [0, 1] output for each action dimension to proper range
             actions = layers.Lambda(lambda x: (x * self.action_range) + self.action_low,
                 name='actions')(raw_actions)
@@ -77,6 +83,14 @@ class Actor:
         loss = K.mean(-action_gradients * actions)
 
         # Incorporate any additional losses here (e.g. from regularizers)
+        # TODO: Try adding regularizers to penalize:
+        #     - low or high action values
+        #     - 
+#         mid_action = (self.action_high-self.action_low)/2.
+#         if self.output_action_regularizer:
+#             loss += self.output_action_regularizer*K.mean(K.square(actions-mid_action))
+        if self.output_action_regularizer:
+            loss += self.output_action_regularizer*K.mean(K.square(raw_actions))
 
         optimizer = optimizers.Adam(lr=self.learn_rate)
         updates_op = optimizer.get_updates(params=self.model.trainable_weights, loss=loss)
@@ -88,7 +102,7 @@ class Actor:
 class Critic:
     """Critic (Value) Model."""
 
-    def __init__(self, state_size, action_size, learn_rate, bn_momentum,
+    def __init__(self, state_size, action_size, learn_rate, input_bn_momentum, bn_momentum,
                  relu_alpha, l2_reg, dropout, hidden_layer_sizes,
                 ):
         """Initialize parameters and build model.
@@ -116,6 +130,7 @@ class Critic:
 
         # Initialize any other variables here
         self.learn_rate = learn_rate
+        self.input_bn_momentum = input_bn_momentum
         self.bn_momentum = bn_momentum
         self.relu_alpha = relu_alpha
         self.l2_reg = l2_reg
@@ -130,6 +145,10 @@ class Critic:
         actions = layers.Input(shape=(self.action_size,), name='actions')
         net_states = states
         net_actions = actions
+        
+        if self.input_bn_momentum>0: 
+            net_states = layers.BatchNormalization(momentum=self.input_bn_momentum)(net_states)
+            net_actions = layers.BatchNormalization(momentum=self.input_bn_momentum)(net_actions)
 
         # Add hidden layer(s) for state pathway
         for size in self.hidden_layer_sizes[0]:

@@ -26,6 +26,11 @@ class DDPG():
                  hidden_layer_sizes_actor=[32,64,32],
                  hidden_layer_sizes_critic=[[32,64],[32,64]],
                  q_a_frames_spec=None,
+                 do_preprocessing=True,
+                 input_bn_momentum_actor=0,
+                 input_bn_momentum_critic=0,
+                 activity_l2_reg=0,
+                 output_action_regularizer=0,
                 ):
 
         self.env = env
@@ -40,18 +45,24 @@ class DDPG():
         self.actor_local = Actor(self.state_size, self.action_size, self.action_low,
                 self.action_high, activation_fn=activation_fn_actor, relu_alpha=relu_alpha_actor,
                 bn_momentum=bn_momentum_actor, learn_rate=lr_actor, l2_reg=l2_reg_actor,
-                dropout=dropout_actor, hidden_layer_sizes=hidden_layer_sizes_actor, )
+                dropout=dropout_actor, hidden_layer_sizes=hidden_layer_sizes_actor, 
+                input_bn_momentum=input_bn_momentum_actor, activity_l2_reg=activity_l2_reg,
+                output_action_regularizer=output_action_regularizer)
         self.actor_target = Actor(self.state_size, self.action_size, self.action_low,
                 self.action_high, activation_fn=activation_fn_actor, relu_alpha=relu_alpha_actor,
                 bn_momentum=bn_momentum_actor, learn_rate=lr_actor, l2_reg=l2_reg_actor,
-                dropout=dropout_actor, hidden_layer_sizes=hidden_layer_sizes_actor, )
+                dropout=dropout_actor, hidden_layer_sizes=hidden_layer_sizes_actor,
+                input_bn_momentum=input_bn_momentum_actor, activity_l2_reg=activity_l2_reg,
+                output_action_regularizer=output_action_regularizer )
 
         # Critic (Q-Value) Model
         self.critic_local = Critic(self.state_size, self.action_size, l2_reg=l2_reg_critic,
-                learn_rate=lr_critic, bn_momentum=bn_momentum_critic, relu_alpha=relu_alpha_critic,
+                learn_rate=lr_critic, relu_alpha=relu_alpha_critic,
+                input_bn_momentum=input_bn_momentum_critic, bn_momentum=bn_momentum_critic,
                 hidden_layer_sizes=hidden_layer_sizes_critic, dropout=dropout_critic, )
         self.critic_target = Critic(self.state_size, self.action_size, l2_reg=l2_reg_critic,
-                learn_rate=lr_critic, bn_momentum=bn_momentum_critic, relu_alpha=relu_alpha_critic,
+                learn_rate=lr_critic, relu_alpha=relu_alpha_critic,
+                input_bn_momentum=input_bn_momentum_critic, bn_momentum=bn_momentum_critic,
                 hidden_layer_sizes=hidden_layer_sizes_critic, dropout=dropout_critic, )
 
         # Initialize target model parameters with local model parameters
@@ -76,6 +87,8 @@ class DDPG():
         self.lr_critic = lr_critic
         self.dropout_actor = dropout_actor
         self.dropout_critic = dropout_critic
+        self.input_bn_momentum_actor = input_bn_momentum_actor
+        self.input_bn_momentum_critic = input_bn_momentum_critic
         self.bn_momentum_actor = bn_momentum_actor
         self.bn_momentum_critic = bn_momentum_critic
         self.activation_fn_actor = activation_fn_actor
@@ -90,6 +103,8 @@ class DDPG():
         self.relu_alpha_critic = relu_alpha_critic
         self.hidden_layer_sizes_actor = hidden_layer_sizes_actor
         self.hidden_layer_sizes_critic = hidden_layer_sizes_critic
+        self.activity_l2_reg = activity_l2_reg
+        self.output_action_regularizer = output_action_regularizer
 
         self.tau_actor = tau_actor
         self.tau_critic = tau_critic
@@ -98,12 +113,13 @@ class DDPG():
         self.training_scores = []
         self.test_scores = []
         self.history = TrainingHistory(env)
-#         self.q_a_frames_spec = Q_a_frames_spec(env, nx=16, ny=16, na=11, x_dim=0, y_dim=1, a_dim=0)
         self.q_a_frames_spec = Q_a_frames_spec(env) if q_a_frames_spec is None else q_a_frames_spec
 
         # Track training steps and episodes
         self.steps = 0
         self.episodes = 0
+        
+        self.do_preprocessing = do_preprocessing
 
         self.reset_episode()
 
@@ -129,7 +145,12 @@ class DDPG():
             relu_alpha_critic=self.relu_alpha_critic,
             dropout_actor=self.dropout_actor, dropout_critic=self.dropout_critic,
             hidden_layer_sizes_actor=self.hidden_layer_sizes_actor,
-            hidden_layer_sizes_critic=self.hidden_layer_sizes_critic, )))
+            hidden_layer_sizes_critic=self.hidden_layer_sizes_critic,
+            input_bn_momentum_actor=self.input_bn_momentum_actor,
+            input_bn_momentum_critic=self.input_bn_momentum_critic,
+            activity_l2_reg=self.activity_l2_reg,   
+            output_action_regularizer=self.output_action_regularizer,
+        )))
 
     def preprocess_state(self, state):
         obs_space = self.env.observation_space
@@ -140,18 +161,20 @@ class DDPG():
 
     def reset_episode(self):
         self.noise.reset()
-        state = self.preprocess_state(self.env.reset())
+        if self.do_preprocessing: state = self.preprocess_state(self.env.reset())
+        else: state = self.env.reset()
         self.last_state = state
         return state
 
     def step(self, action, reward, next_state, done):
          # Save experience / reward
-        next_state = self.preprocess_state(next_state)
+        next_state = self.preprocess_state(next_state) if self.do_preprocessing else next_state
         self.memory.add(self.last_state, action, reward, next_state, done)
+        # TODO: scale actions and rewards
 
         # Learn, if enough samples are available in memory
         if len(self.memory) > self.batch_size and (self.train_during_episode or done):
-            experiences = self.memory.sample()
+            experiences = self.memory.sample_standardized()
             self.learn(experiences)
 
         # Roll over last state and action
@@ -163,18 +186,23 @@ class DDPG():
         if state is None:
             state = self.last_state
         else:
-            state = self.preprocess_state(state)
-        state = np.reshape(state, [-1, self.state_size])
-        action = self.actor_local.model.predict(state)[0]
-        noise_sample = self.noise.sample() * max(0,eps)
+            if self.do_preprocessing: state = self.preprocess_state(state)
+        if len(self.memory)==0:
+            state = np.zeros(state.shape)
+        else:
+            state = self.memory.standardize_state(state)
+        action = self.actor_local.model.predict(np.reshape(state, [-1, self.state_size]))[0]
+        noise_sample = self.noise.sample() * max(0,eps) # add some noise for exploration
+        
+        # TODO: don't assume action_high and action_low are the same for each action dimension
         res = list(np.clip(action + noise_sample, self.action_low, self.action_high))
         if verbose:
-            print("State: (%6.3f, %6.3f), Eps: %6.3f, Action: %6.3f + %6.3f = %6.3f"%
+            print("State: (%6.3f, %6.3f), Eps: %6.3g, Action: %6.3f + %6.3f = %6.3f"%
                   (state[0][0], state[0][1], eps, action, noise_sample, res[0]))
         if include_raw_actions:
             return res, action
         else:
-            return res  # add some noise for exploration
+            return res
 
     def learn(self, experiences):
         """Update policy and value parameters using given batch of experience tuples."""
@@ -230,7 +258,7 @@ class DDPG():
                 self.run_episode(train=False, eps=0, action_repeat=action_repeat)
             last_training_episode = self.history.training_episodes[-1]
             num_steps = last_training_episode.last_step - last_training_episode.first_step+1
-            message = "Episode %i - epsilon: %.2f, memory size: %i, num steps: %i, training score: %.2f"\
+            message = "Episode %i - epsilon: %.4g, memory size: %i, num steps: %i, training score: %.2f"\
                         %(self.episodes, eps, len(self.memory), num_steps, last_training_episode.score)
             if run_tests: message += ", test score: %.2f"%self.history.test_episodes[-1].score
             print(message)
@@ -290,7 +318,7 @@ class DDPG():
             return a
         actions = np.array([get_action(a) for a in action_space]*nx*ny)
 
-        preprocessed_states = np.array([ self.preprocess_state(s) for s in raw_states])
+        preprocessed_states = np.array([ self.preprocess_state(s) for s in raw_states]) if self.do_preprocessing else raw_states
         Q = self.critic_local.model.predict_on_batch(
             [np.repeat(preprocessed_states,na,axis=0),actions]).reshape((ny,nx,na))
         Q_max = np.max(Q,axis=2)
@@ -303,7 +331,7 @@ class DDPG():
         return namedtuple( 'q_a_frames',[
                 'step_idx', 'episode_idx', 'Q_max', 'Q_std', 'max_action', 'action_gradients', 'actor_policy'
             ])(self.steps, self.episodes, Q_max, Q_std, max_action, action_gradients, actor_policy)
-
+    
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""
     def __init__(self, buffer_size, batch_size):
@@ -315,19 +343,108 @@ class ReplayBuffer:
         """
         self.memory = deque(maxlen=buffer_size)  # internal memory (deque)
         self.batch_size = batch_size
-        self.experience = namedtuple("Experience",
-                                     field_names=["state", "action", "reward", "next_state", "done"])
-
-    def add(self, state, action, reward, next_state, done):
-        e = self.experience(state, action, reward, next_state, done)
-        self.memory.append(e)
-
-    def sample(self):
-        return random.sample(self.memory, k=min(self.batch_size, len(self)))
-
+        self._field_names = field_names=["state", "action", "reward", "next_state", "done"]
+        self.experience = namedtuple("Experience", self._field_names)
+        self.action_means = []
+        self.action_vars = []
+        self.action_M2s = []
+        self.state_means = []
+        self.state_vars = []
+        self.state_M2s = []
+        self.reward_mean = None
+        self.reward_vars = None
+        self.reward_M2 = None
+        
     def __len__(self):
         return len(self.memory)
+        
+    def sample(self):
+        return random.sample(self.memory, k=min(self.batch_size, len(self)))
+        
+    def normalize_state(self, state, eps=.0000001):
+        return [ (a-self.state_means[i])/(np.sqrt(self.state_vars[i])+eps) for i, a in enumerate(state) ]
+    
+    def normalize_action(self, action, eps=.0000001):
+        return [ (a-self.action_means[i])/(np.sqrt(self.action_vars[i])+eps) for i, a in enumerate(action) ]
+    
+    def transform_action(self, normalized_action):
+        return [ np.sqrt(self.action_vars[i])*a+self.action_means[i] for i, a in enumerate(normalized_action) ]
+    
+    def normalize_reward(self, reward, eps=.0000001):
+        if None in [self.reward_mean, self.reward_var]:
+            return 0
+        return (reward-self.reward_mean)/(np.sqrt(self.reward_var)+eps)
+    
+    def normalize_sample(self, sample):
+        """ normalizes given sample with the mean and variance of each experience in memory. """
+        return namedtuple("normalizedExperience", self._field_names)(
+                            self.normalize_state(sample.state),
+                            self.normalize_action(sample.action),
+                            self.normalize_reward(sample.reward),
+                            self.normalize_state(sample.next_state),
+                            sample.done )
+    
+    def sample_normalized(self):
+        """ Return states, actions, and rewards normalized 
+            by the mean and variance of each experience in memory. """
+        return [ self.normalize_sample(exp) for exp in self.sample() ]
+    
+    def add(self, state, action, reward, next_state, done):
+        e = self.experience(state, action, reward, next_state, done)
+        # Update mean and std of actions, rewards and each state dimension before adding to memory.
+        """ Using Welford's online algorithm for calculating rolling variance
+            https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
+        """
+        # for a new value newValue, compute the new count, new mean, the new M2.
+        # mean accumulates the mean of the entire dataset
+        # M2 aggregates the squared distance from the mean
+        # count aggregates the number of samples seen so far
+        def _update(existingAggregate, newValue):
+            (count, mean, M2) = existingAggregate
+            count += 1 
+            delta = newValue - mean
+            mean += delta / count
+            delta2 = newValue - mean
+            M2 += delta * delta2
 
+            return (count, mean, M2)
+
+        # retrieve the mean, variance and sample variance from an aggregate
+        def _finalize(existingAggregate, newValue):
+            (count, mean, M2) = _update(existingAggregate, newValue)
+            (mean, variance, sampleVariance) = (mean, M2/count, M2/(count - 1)) 
+            if count < 2:
+                return float('nan')
+            else:
+                return (mean, variance, sampleVariance)
+        """ 
+        End copy from https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
+        """
+        if len(self)==0:
+            self.state_means = copy.copy(state)
+            self.state_M2s = np.zeros(len(state))
+            self.state_vars = np.zeros(len(state))
+            self.action_means = copy.copy(action)
+            self.action_M2s = np.zeros(len(action))
+            self.action_vars = np.zeros(len(action))
+            self.reward_mean = copy.copy(reward)
+            self.reward_M2 = 0
+            self.reward_var = 0
+        else:
+            for i, s in enumerate(state):
+                existingAggregate = (len(self), self.state_means[i], self.state_M2s[i])
+                (count, mean, self.state_M2s[i]) = _update(existingAggregate, s)
+                (self.state_means[i], self.state_vars[i], _) = _finalize(existingAggregate, s)
+            for i, a in enumerate(action):
+                existingAggregate = (len(self), self.action_means[i], self.action_M2s[i])
+                (count, mean, self.action_M2s[i]) = _update(existingAggregate, a)
+                (self.action_means[i], self.action_vars[i], _) = _finalize(existingAggregate, a)
+            existingAggregate = (len(self), self.reward_mean, self.reward_M2)
+            (count, mean, self.reward_M2) = _update(existingAggregate, reward)
+            (self.reward_mean, self.reward_var, _) = _finalize(existingAggregate, reward)
+                                         
+        self.memory.append(e)
+        
 class OUNoise:
     """Ornstein-Uhlenbeck noise process."""
     def __init__(self, size, mu, theta, sigma):
@@ -435,40 +552,7 @@ class TrainingHistory:
             if g.step_idx>=step_idx:
                 return g
         return g
-#     def append_training_step(self, step, state, action, reward):
-#         """
-#         Initialize EpisodeHistory with states, actions, and rewards
-#         Params
-#         ======
-#             episode_idx (int): Episode index
-#             step (int): Step index
-#             state (list|array): State, array-like of shape env.observation_space.shape
-#             action (list|array): Action, array-like of shape env.action_space.shape
-#             reward (float): Reward, scalar value
-#         """
-#         if len(self.training_episodes)==0:
-#             raise "No training episodes exist yet. "
-#         self.training_episodes[-1].append(step, state, action, reward)
-#         self.last_step = step
-#         return self
-#     def append_test_step(self, step, state, action, reward):
-#         """
-#         Initialize EpisodeHistory with states, actions, and rewards
-#         Params
-#         ======
-#             episode_idx (int): Episode index
-#             step (int): Step index
-#             state (list|array): State, array-like of shape env.observation_space.shape
-#             action (list|array): Action, array-like of shape env.action_space.shape
-#             reward (float): Reward, scalar value
-#         """
-#         if len(self.test_episodes)==0:
-#             raise "No test episodes exist yet. "
-#         self.test_episodes[-1].append(step, state, action, reward)
-#         self.last_step = step
-#         return self
-
-
+    
 class EpisodeHistory:
     """ Tracks the history for a single episode, including the states, actions, and rewards.
     """
