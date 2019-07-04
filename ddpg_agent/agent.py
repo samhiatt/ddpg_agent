@@ -5,7 +5,8 @@ import numpy as np
 import copy
 import random
 import sys
-from collections import namedtuple, deque
+from collections import namedtuple, deque, defaultdict
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from ddpg_agent.models import Actor
 from ddpg_agent.models import Critic
@@ -38,18 +39,31 @@ class DDPG():
         self.action_size = env.action_space.shape[0]
         self.action_low = env.action_space.low
         self.action_high = env.action_space.high
+        
+        self.observation_scalers = defaultdict(lambda: StandardScaler().fit([[0]]))
+        for i in range(env.observation_space.shape[0]):
+            if env.observation_space.low[i] != float('-inf') and env.observation_space.high[i] != float('inf'):
+                self.observation_scalers[i] = MinMaxScaler((-1,1)).fit(
+                    [[env.observation_space.low[i]], [env.observation_space.high[i]]])
+                
+#         self.action_scalers = defaultdict(lambda: MinMaxScaler((-1,1)).fit([[],[]]))
+#         for i in range(env.action_space.shape[0]):
+#             if env.action_space.low[i] != float('-inf') and env.action_space.high[i] != float('inf'):
+#                 self.action_scalers = MinMaxScaler((-1,1)).fit(
+#                     [[env.action_space.low[i]], [env.action_space.high[i]]])
+        self.action_scaler = MinMaxScaler((-1,1)).fit([env.action_space.low, env.action_space.high])
 
         self.train_during_episode = train_during_episode
 
         # Actor (Policy) Model
-        self.actor_local = Actor(self.state_size, self.action_size, self.action_low,
-                self.action_high, activation_fn=activation_fn_actor, relu_alpha=relu_alpha_actor,
+        self.actor_local = Actor(self.state_size, self.action_size, self.env.action_space.low,
+                self.env.action_space.high, activation_fn=activation_fn_actor, relu_alpha=relu_alpha_actor,
                 bn_momentum=bn_momentum_actor, learn_rate=lr_actor, l2_reg=l2_reg_actor,
                 dropout=dropout_actor, hidden_layer_sizes=hidden_layer_sizes_actor, 
                 input_bn_momentum=input_bn_momentum_actor, activity_l2_reg=activity_l2_reg,
                 output_action_regularizer=output_action_regularizer)
-        self.actor_target = Actor(self.state_size, self.action_size, self.action_low,
-                self.action_high, activation_fn=activation_fn_actor, relu_alpha=relu_alpha_actor,
+        self.actor_target = Actor(self.state_size, self.action_size, self.env.action_space.low,
+                self.env.action_space.high, activation_fn=activation_fn_actor, relu_alpha=relu_alpha_actor,
                 bn_momentum=bn_momentum_actor, learn_rate=lr_actor, l2_reg=l2_reg_actor,
                 dropout=dropout_actor, hidden_layer_sizes=hidden_layer_sizes_actor,
                 input_bn_momentum=input_bn_momentum_actor, activity_l2_reg=activity_l2_reg,
@@ -108,10 +122,10 @@ class DDPG():
 
         self.tau_actor = tau_actor
         self.tau_critic = tau_critic
+        
+        self.step_callback = None
 
         # Training history
-        self.training_scores = []
-        self.test_scores = []
         self.history = TrainingHistory(env)
         self.q_a_frames_spec = Q_a_frames_spec(env) if q_a_frames_spec is None else q_a_frames_spec
 
@@ -122,6 +136,11 @@ class DDPG():
         self.do_preprocessing = do_preprocessing
 
         self.reset_episode()
+        
+        self.max_training_score_callback = lambda x: None
+        self.max_test_score_callback = lambda x: None
+        self.episode_callback = lambda x: None
+        self.step_callback = lambda x: None
 
     def print_summary(self):
         print("Actor model summary:")
@@ -151,13 +170,46 @@ class DDPG():
             activity_l2_reg=self.activity_l2_reg,   
             output_action_regularizer=self.output_action_regularizer,
         )))
+        
+    def set_episode_callback(self, episode_callback=None):
+        if not callable(episode_callback):
+            self.episode_callback = lambda x: None
+        else: self.episode_callback=episode_callback
+            
+    def set_step_callback(self, step_callback=None):
+        if not callable(step_callback):
+            self.step_callback = lambda x: None
+        else: self.step_callback=step_callback
+            
+    def set_max_training_score_callback(self, max_training_score_callback=None):
+        if not callable(max_training_score_callback):
+            self.max_training_score_callback = lambda x: None
+        else: self.max_training_score_callback=max_training_score_callback
+            
+    def set_max_test_score_callback(self, max_test_score_callback=None):
+        if not callable(max_test_score_callback):
+            self.max_test_score_callback = lambda x: None
+        else: self.max_test_score_callback=max_test_score_callback
 
     def preprocess_state(self, state):
-        obs_space = self.env.observation_space
-        return np.array([
-            state[i] if obs_space.low[i]==-float('inf') or obs_space.high[i]==float('inf') \
-            else (state[i]-obs_space.low[i])/(obs_space.high[i]-obs_space.low[i])*2 - 1
-            for i in range(self.state_size)])
+        res = np.array(state, copy=True)
+        for i in range(self.env.observation_space.shape[0]):
+            res[i] = self.observation_scalers[i].transform(np.array(state[i]).reshape(-1,1))[0]
+        return res
+    
+    def transform_state(self, preprocessed_state):
+        res = np.array(preprocessed_state, copy=True)
+        for i in range(self.env.observation_space.shape[0]):
+             res[i] = self.observation_scalers[i].inverse_transform(
+                np.array(preprocessed_state[i]).reshape(-1,1))[0]
+        return res
+    
+    def preprocess_action(self, action):
+        return self.action_scaler.transform(np.array(action).reshape(-1,self.action_size))[0]
+    
+    def transform_action(self, preprocessed_action):
+        return self.action_scaler.inverse_transform(
+            np.array(preprocessed_action).reshape(-1,self.action_size))[0]
 
     def reset_episode(self):
         self.noise.reset()
@@ -166,39 +218,34 @@ class DDPG():
         self.last_state = state
         return state
 
-    def step(self, action, reward, next_state, done):
+    def step(self, action, reward, next_state, done, learn=False):
          # Save experience / reward
-        next_state = self.preprocess_state(next_state) if self.do_preprocessing else next_state
+        if self.do_preprocessing:
+            next_state = self.preprocess_state(next_state)
+#             action = self.preprocess_action(action) 
+#             reward = self.preprocess_reward(reward)
         self.memory.add(self.last_state, action, reward, next_state, done)
         # TODO: scale actions and rewards
 
         # Learn, if enough samples are available in memory
-        if len(self.memory) > self.batch_size and (self.train_during_episode or done):
-            experiences = self.memory.sample_normalized()
+        if learn or (len(self.memory) > self.batch_size and (self.train_during_episode or done)):
+            experiences = self.memory.sample()
             self.learn(experiences)
 
         # Roll over last state and action
         self.last_state = next_state
         self.steps += 1
 
-    def act(self, state=None, eps=0, verbose=False, include_raw_actions=False):
+    def act(self, state=None, eps=0, include_raw_actions=False):
         """Returns actions for given state(s) as per current policy."""
         if state is None:
             state = self.last_state
         else:
             if self.do_preprocessing: state = self.preprocess_state(state)
-        if len(self.memory)==0:
-            state = np.zeros(state.shape)
-        else:
-            state = self.memory.normalize_state(state)
         action = self.actor_local.model.predict(np.reshape(state, [-1, self.state_size]))[0]
         noise_sample = self.noise.sample() * max(0,eps) # add some noise for exploration
         
-        # TODO: don't assume action_high and action_low are the same for each action dimension
-        res = list(np.clip(action + noise_sample, self.action_low, self.action_high))
-        if verbose:
-            print("State: (%6.3f, %6.3f), Eps: %6.3g, Action: %6.3f + %6.3f = %6.3f"%
-                  (state[0][0], state[0][1], eps, action, noise_sample, res[0]))
+        res = list(np.clip(action + noise_sample, self.env.action_space.low, self.env.action_space.high))
         if include_raw_actions:
             return res, action
         else:
@@ -219,6 +266,12 @@ class DDPG():
         # Get predicted next-state actions and Q values from target models
         actions_next = self.actor_target.model.predict_on_batch(next_states)
         Q_targets_next = self.critic_target.model.predict_on_batch([next_states, actions_next])
+        
+        # Normalize rewards
+        # https://datascience.stackexchange.com/questions/20098/
+        # why-do-we-normalize-the-discounted-rewards-when-doing-policy-gradient-reinforcem
+        rewards -= self.memory.reward_mean
+        rewards /= np.sqrt(self.memory.reward_var)
 
         # Compute Q targets for current states and train critic model (local)
         Q_targets = rewards + self.gamma * Q_targets_next * (1 - dones)
@@ -245,26 +298,40 @@ class DDPG():
         target_model.set_weights(new_weights)
 
     def train_n_episodes(self, n_episodes, eps=1, eps_decay=None, action_repeat=1,
-                         run_tests=True, gen_q_a_frames_every_n_steps=0, draw_plots=False ):
+                         run_tests=True, gen_q_a_frames_every_n_steps=0, 
+                         learn_from_test=False, draw_plots=False, ):
         if eps_decay is None: eps_decay = 1/n_episodes
-        n_training_episodes = len(self.training_scores)
+        n_training_episodes = len(self.history.training_episodes)
         for i_episode in range(n_training_episodes+1, n_training_episodes+n_episodes+1):
             eps -= eps_decay
             eps = max(eps,0)
             episode_start_step = self.steps
-            self.run_episode(train=True, action_repeat=action_repeat, eps=eps,
-                             gen_q_a_frames_every_n_steps=gen_q_a_frames_every_n_steps )
+            training_score = self.run_episode(train=True, action_repeat=action_repeat, eps=eps,
+                                     gen_q_a_frames_every_n_steps=gen_q_a_frames_every_n_steps,)
             if run_tests is True:
-                self.run_episode(train=False, eps=0, action_repeat=action_repeat)
-            last_training_episode = self.history.training_episodes[-1]
-            num_steps = last_training_episode.last_step - last_training_episode.first_step+1
-            message = "Episode %i - epsilon: %.4g, memory size: %i, num steps: %i, training score: %.2f"\
-                        %(self.episodes, eps, len(self.memory), num_steps, last_training_episode.score)
-            if run_tests: message += ", test score: %.2f"%self.history.test_episodes[-1].score
-            print(message)
-            sys.stdout.flush()
+                #self.run_episode(train=False, eps=0, action_repeat=action_repeat)
+                test_score = self.test_agent(action_repeat=action_repeat, 
+                                gen_q_a_frames_every_n_steps=gen_q_a_frames_every_n_steps, 
+                                learn_from_test=learn_from_test, )
+                # TODO: If best score then snapshot weights
+            self.episode_callback(self.episodes)
+            
+#             last_training_episode = self.history.training_episodes[-1]
+#             num_steps = last_training_episode.last_step - last_training_episode.first_step+1
+#             message = "Episode %i - epsilon: %8.4g, memory size: %i, num steps: %i, training score: %6.2f"\
+#                         %(i_episode, eps, len(self.memory), num_steps, last_training_episode.score)
+#             if run_tests: message += ", test score: %.2f"%self.history.test_episodes[-1].score
+#             print(message)
+#             sys.stdout.flush()
+            
+    def test_agent(self, action_repeat=1, gen_q_a_frames_every_n_steps=0, learn_from_test=False, ):
+        return self.run_episode(train=False, eps=0, 
+                    action_repeat=action_repeat, 
+                    gen_q_a_frames_every_n_steps=gen_q_a_frames_every_n_steps,
+                    learn_from_test=learn_from_test, )
 
-    def run_episode(self, action_repeat=1, eps=0, train=False, gen_q_a_frames_every_n_steps=0 ):
+    def run_episode(self, action_repeat=1, eps=0, train=False, gen_q_a_frames_every_n_steps=0, 
+                    learn_from_test=False, ):
         next_state = self.reset_episode()
         if train: episode_history = self.history.new_training_episode(self.episodes+1,eps)
         else: episode_history = self.history.new_test_episode(self.episodes,eps)
@@ -278,37 +345,71 @@ class DDPG():
                 sum_rewards += reward
                 if done:
                     break
-            #sum_rewards = np.log1p(sum_rewards)
-            episode_history.append(self.steps, next_state, raw_action, action, sum_rewards)
-            if train:
+            # TODO: Snapshot agent's weights after each episode, and/or every gen_q_a_frames_every_n_steps
+            env_state = None
+            if callable(self.step_callback): self.step_callback(self.steps)
+            if callable(self.env.get_full_state): 
+                # Get some extra environment state data to store in episode history for visualization
+                env_state = self.env.get_full_state()
+            episode_history.append(self.steps, next_state, raw_action, action, sum_rewards, env_state)
+            if train is True:
                 self.step(action, sum_rewards, next_state, done)
+                # TODO: Replace this with a callback function that will enable visualization snapshots to be generated externally
                 if gen_q_a_frames_every_n_steps > 0 and self.steps%gen_q_a_frames_every_n_steps==0:
                     self.history.add_q_a_frame(self.get_q_a_frames())
+            elif learn_from_test is True:
+                self.step(action, sum_rewards, next_state, done)
             if done:
                 if train:
                     self.episodes += 1
+                    if self.history.max_training_score is None or episode_history.score > self.history.max_training_score:
+                        self.history.max_training_score = episode_history.score
+                        self.max_training_score_callback(episode_history)
+                elif self.history.max_test_score is None or episode_history.score > self.history.max_test_score:
+                    self.history.max_test_score = episode_history.score
+                    self.max_test_score_callback(episode_history)
                 break
+        return episode_history.score
 
-    def get_q_a_frames(self):
+    def get_q_a_frames(self, q_a_frames_spec=None):
         """ TODO: Figure out how to work with added dimensions.
                 - Use x_dim, y_dim, and a_dim to know which dimensions of state and action to vary.
                     Maybe fill in the unvaried dimensions of states and actions with agent's current state
                     and anticipated action (according to policy).
         """
-        xs = self.q_a_frames_spec.xs
-        nx = self.q_a_frames_spec.nx
-        ys = self.q_a_frames_spec.ys
-        ny = self.q_a_frames_spec.ny
-        action_space = self.q_a_frames_spec.action_space
-        na = self.q_a_frames_spec.na
-        x_dim = self.q_a_frames_spec.x_dim
-        y_dim = self.q_a_frames_spec.y_dim
-        a_dim = self.q_a_frames_spec.a_dim
+        if q_a_frames_spec is None:
+            q_a_frames_spec = self.q_a_frames_spec
+        xs = q_a_frames_spec.xs
+        nx = q_a_frames_spec.nx
+        ys = q_a_frames_spec.ys
+        ny = q_a_frames_spec.ny
+        action_space = q_a_frames_spec.action_space
+        na = q_a_frames_spec.na
+        x_dim = q_a_frames_spec.x_dim
+        y_dim = q_a_frames_spec.y_dim
+        a_dim = q_a_frames_spec.a_dim
 
         def get_state(x,y):
+            # TODO: Re-consider how we're copying the rest of the state. In the case of the quadcopter we have 
+            #       position for the last 3 (action-repeat) time steps. These should be adjusted to match with the 
+            #       variation we are adding to any position dimensions we are visualizing. 
+            #       This function will have to know somehow that state dimensions [0,1,2,6,7,8,12,13,14] need to 
+            #       apply this spatial translation. 
+            
             s=copy.copy(self.last_state)
-            s[x_dim]=x
-            s[y_dim]=y
+            # Special case for quadcopter with action_repeat=3
+            def adjust_state_position(dim, val):
+                # if we're visualizing a spatial dimension
+                if len(s)>14: 
+                    orig_val = s[x_dim]
+                    diff = val - orig_val
+                    s[dim+6] += diff
+                    s[dim+12] += diff
+                s[dim]=val
+#             s[x_dim]=x
+#             s[y_dim]=y
+            adjust_state_position(x_dim,x)
+            adjust_state_position(y_dim,y)
             return s
         raw_states = np.array([[ get_state(x,y) for x in xs ] for y in ys ]).reshape(nx*ny, self.state_size)
 
@@ -318,15 +419,16 @@ class DDPG():
             return a
         actions = np.array([get_action(a) for a in action_space]*nx*ny)
 
-        preprocessed_states = np.array([ self.preprocess_state(s) for s in raw_states]) if self.do_preprocessing else raw_states
+        preprocessed_states = np.array([ self.preprocess_state(s) for s in raw_states]
+                                      ) if self.do_preprocessing else raw_states
         Q = self.critic_local.model.predict_on_batch(
-            [np.repeat(preprocessed_states,na,axis=0),actions]).reshape((ny,nx,na))
+                        [np.repeat(preprocessed_states,na,axis=0),actions]).reshape((ny,nx,na))
         Q_max = np.max(Q,axis=2)
         Q_std = np.std(Q,axis=2)
         max_action = np.array([action_space[a] for a in np.argmax(Q,axis=2).flatten()]).reshape((ny,nx))
-        actor_policy = np.array([ self.act(s)[0] for s in raw_states]).reshape(ny,nx)
+        actor_policy = np.array([ self.act(s) for s in raw_states]).reshape(ny,nx,self.action_size)
         action_gradients = self.critic_local.get_action_gradients(
-            [preprocessed_states,actor_policy.reshape(nx*ny,-1),0])[0].reshape(ny,nx)
+            [preprocessed_states,actor_policy.reshape(nx*ny, self.action_size),0])[0].reshape(ny,nx,self.action_size)
 
         return namedtuple( 'q_a_frames',[
                 'step_idx', 'episode_idx', 'Q_max', 'Q_std', 'max_action', 'action_gradients', 'actor_policy'
@@ -352,7 +454,7 @@ class ReplayBuffer:
         self.state_vars = []
         self.state_M2s = []
         self.reward_mean = None
-        self.reward_vars = None
+        self.reward_var = None
         self.reward_M2 = None
         
     def __len__(self):
@@ -361,33 +463,33 @@ class ReplayBuffer:
     def sample(self):
         return random.sample(self.memory, k=min(self.batch_size, len(self)))
         
-    def normalize_state(self, state, eps=.0000001):
-        return [ (a-self.state_means[i])/(np.sqrt(self.state_vars[i])+eps) for i, a in enumerate(state) ]
+#     def normalize_state(self, state, eps=.0000001):
+#         return [ (a-self.state_means[i])/(np.sqrt(self.state_vars[i])+eps) for i, a in enumerate(state) ]
     
-    def normalize_action(self, action, eps=.0000001):
-        return [ (a-self.action_means[i])/(np.sqrt(self.action_vars[i])+eps) for i, a in enumerate(action) ]
+#     def normalize_action(self, action, eps=.0000001):
+#         return [ (a-self.action_means[i])/(np.sqrt(self.action_vars[i])+eps) for i, a in enumerate(action) ]
     
-    def transform_action(self, normalized_action):
-        return [ np.sqrt(self.action_vars[i])*a+self.action_means[i] for i, a in enumerate(normalized_action) ]
+#     def transform_action(self, normalized_action):
+#         return [ np.sqrt(self.action_vars[i])*a+self.action_means[i] for i, a in enumerate(normalized_action) ]
     
-    def normalize_reward(self, reward, eps=.0000001):
-        if None in [self.reward_mean, self.reward_var]:
-            return 0
-        return (reward-self.reward_mean)/(np.sqrt(self.reward_var)+eps)
+#     def normalize_reward(self, reward, eps=.0000001):
+#         if None in [self.reward_mean, self.reward_var]:
+#             return 0
+#         return (reward-self.reward_mean)/(np.sqrt(self.reward_var)+eps)
     
-    def normalize_sample(self, sample):
-        """ normalizes given sample with the mean and variance of each experience in memory. """
-        return namedtuple("normalizedExperience", self._field_names)(
-                            self.normalize_state(sample.state),
-                            self.normalize_action(sample.action),
-                            self.normalize_reward(sample.reward),
-                            self.normalize_state(sample.next_state),
-                            sample.done )
+#     def normalize_sample(self, sample):
+#         """ normalizes given sample with the mean and variance of each experience in memory. """
+#         return namedtuple("normalizedExperience", self._field_names)(
+#                             self.normalize_state(sample.state),
+#                             self.normalize_action(sample.action),
+#                             self.normalize_reward(sample.reward),
+#                             self.normalize_state(sample.next_state),
+#                             sample.done )
     
-    def sample_normalized(self):
-        """ Return states, actions, and rewards normalized 
-            by the mean and variance of each experience in memory. """
-        return [ self.normalize_sample(exp) for exp in self.sample() ]
+#     def sample_normalized(self):
+#         """ Return states, actions, and rewards normalized 
+#             by the mean and variance of each experience in memory. """
+#         return [ self.normalize_sample(exp) for exp in self.sample() ]
     
     def add(self, state, action, reward, next_state, done):
         e = self.experience(state, action, reward, next_state, done)
@@ -521,6 +623,8 @@ class TrainingHistory:
         self.last_step = 0
         self.q_a_frames_spec = Q_a_frames_spec(env, nx=nx, ny=ny, na=na,
                                          x_dim=x_dim, y_dim=y_dim, a_dim=a_dim)
+        self.max_training_score = None
+        self.max_test_score = None
 
     def __repr__(self):
         return "TrainingHistory ( %i training_episodes, %i test_episodes, %i qa_grids, last_step: %i )"%\
@@ -573,18 +677,20 @@ class EpisodeHistory:
         self.raw_actions = []
         self.actions = []
         self.rewards = []
+        self.env_state = []
 
         self.score = self._get_score()
 
     def _get_score(self):
         return sum(self.rewards)
 
-    def append(self, step, state, raw_action, action, reward):
+    def append(self, step, state, raw_action, action, reward, env_state):
         self.steps.append(step)
         self.states.append(state)
         self.raw_actions.append(raw_action)
         self.actions.append(action)
         self.rewards.append(reward)
+        if self.env_state is not None: self.env_state.append(env_state)
         if self.first_step is None: self.first_step = step
         self.last_step = step
         self.score += reward
