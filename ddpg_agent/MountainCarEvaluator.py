@@ -4,6 +4,7 @@ import gym
 import numpy as np
 
 def evaluate_hyperparams(params):
+    env = gym.make('MountainCarContinuous-v0')
 
     agent = DDPG(env, train_during_episode=True, ou_mu=0, ou_theta=.05, ou_sigma=.25, 
                  discount_factor=.999, replay_buffer_size=10000, replay_batch_size=1024,
