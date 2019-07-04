@@ -107,11 +107,13 @@ def create_animation(agent, every_n_steps=1, display_mode='gif', fps=30):
         Q_max_im.set_clim(q_a_frames.Q_max.min(),q_a_frames.Q_max.max())
         Q_std_im.set_data(q_a_frames.Q_std)
         Q_std_im.set_clim(q_a_frames.Q_std.min(),q_a_frames.Q_std.max())
-        action_gradients_im.set_data(q_a_frames.action_gradients)
+        action_gradients_im.set_data(q_a_frames.action_gradients.reshape(
+            agent.q_a_frames_spec.ny, agent.q_a_frames_spec.nx))
         action_gradients_im.set_clim(q_a_frames.action_gradients.min(),
                                      q_a_frames.action_gradients.max())
         max_action_im.set_data(q_a_frames.max_action)
-        actor_policy_im.set_data(q_a_frames.actor_policy)
+        actor_policy_im.set_data(q_a_frames.actor_policy.reshape(
+            agent.q_a_frames_spec.ny, agent.q_a_frames_spec.nx))
 
         # Plot scores
         xdata = range(1,training_episode.episode_idx+1)

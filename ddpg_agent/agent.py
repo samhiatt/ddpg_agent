@@ -316,13 +316,13 @@ class DDPG():
                 # TODO: If best score then snapshot weights
             self.episode_callback(self.episodes)
             
-#             last_training_episode = self.history.training_episodes[-1]
-#             num_steps = last_training_episode.last_step - last_training_episode.first_step+1
-#             message = "Episode %i - epsilon: %8.4g, memory size: %i, num steps: %i, training score: %6.2f"\
-#                         %(i_episode, eps, len(self.memory), num_steps, last_training_episode.score)
-#             if run_tests: message += ", test score: %.2f"%self.history.test_episodes[-1].score
-#             print(message)
-#             sys.stdout.flush()
+            last_training_episode = self.history.training_episodes[-1]
+            num_steps = last_training_episode.last_step - last_training_episode.first_step+1
+            message = "Episode %i - epsilon: %8.4g, memory size: %i, num steps: %i, training score: %6.2f"\
+                        %(i_episode, eps, len(self.memory), num_steps, last_training_episode.score)
+            if run_tests: message += ", test score: %.2f"%self.history.test_episodes[-1].score
+            print(message)
+            sys.stdout.flush()
             
     def test_agent(self, action_repeat=1, gen_q_a_frames_every_n_steps=0, learn_from_test=False, ):
         return self.run_episode(train=False, eps=0, 
@@ -348,7 +348,7 @@ class DDPG():
             # TODO: Snapshot agent's weights after each episode, and/or every gen_q_a_frames_every_n_steps
             env_state = None
             if callable(self.step_callback): self.step_callback(self.steps)
-            if callable(self.env.get_full_state): 
+            if hasattr(self.env,'get_full_state') and callable(self.env.get_full_state): 
                 # Get some extra environment state data to store in episode history for visualization
                 env_state = self.env.get_full_state()
             episode_history.append(self.steps, next_state, raw_action, action, sum_rewards, env_state)
