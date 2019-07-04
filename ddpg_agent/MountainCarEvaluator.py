@@ -14,7 +14,7 @@ def evaluate_hyperparams(params):
                  bn_momentum_actor=0, bn_momentum_critic=.7,
                  hidden_layer_sizes_actor=[16,32,16], hidden_layer_sizes_critic=[[16,32],[16,32]], )
 
-    agent.train_n_episodes(30, eps=1, eps_decay=1/50, action_repeat=5, run_tests=True, )
+    agent.train_n_episodes(30, eps=params.eps, eps_decay=1/50, action_repeat=5, run_tests=True, )
     
     # Return a negative score (since hyperopt will minimize this function)
     return -agent.history.max_test_score
