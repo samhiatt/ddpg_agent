@@ -5,3 +5,4 @@ matplotlib==3.0.3
 gym==0.12.1
 ipython==7.2.0
 sklearn==0.0
+pandas==0.23.4
