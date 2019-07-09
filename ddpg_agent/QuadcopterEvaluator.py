@@ -29,9 +29,10 @@ def noise_evaluator(params):
                  replay_batch_size=params.n_episodes, # suppress model training
                 )
     # agent.print_summary()
-    agent.train_n_episodes(params.n_episodes, eps=params.eps, eps_decay=0,
+    agent.train_n_episodes(params.n_episodes, eps_decay=0,
                            # Notice we're acting randomly for all n_episodes
-                           act_random_first_n_episodes=params.n_episodes,)
+                           act_random_first_n_episodes=params.n_episodes,
+                           primary_exploration_eps=params.eps, )
 
     # Return a negative score (since hyperopt will minimize this function)
     return -np.mean([ep.score for ep in agent.history.training_episodes])
