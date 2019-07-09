@@ -32,7 +32,9 @@ def noise_evaluator(params):
     agent.train_n_episodes(params.n_episodes, eps=params.eps, eps_decay=0,
                            # Notice we're acting randomly for all n_episodes
                            act_random_first_n_episodes=params.n_episodes,)
-    return np.mean([ep.score for ep in agent.history.training_episodes])
+
+    # Return a negative score (since hyperopt will minimize this function)
+    return -np.mean([ep.score for ep in agent.history.training_episodes])
 
 def evaluator(params):
     """ Evaluator to test learning parameters, using the noise parameters learned using
@@ -61,7 +63,8 @@ def evaluator(params):
                            primary_exploration_eps=params['primary_exploration_eps'],
                            )
 
-    return agent.history.max_test_score
+    # Return a negative score (since hyperopt will minimize this function)
+    return -agent.history.max_test_score
 
 
 
