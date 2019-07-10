@@ -73,7 +73,7 @@ def evaluator(params):
 
     # Return a negative score (since hyperopt will minimize this function)
     # Average test score, last 10 episodes
-    return -np.mean([e.score for e in agent.history.test_episodes[-10:]])
+    return -np.mean([e.score for e in agent.history.test_episodes[-100:]])
 
 
 
