@@ -45,7 +45,7 @@ def evaluator(params):
             'ou_mu','ou_theta','ou_sigma','n_episodes','eps',
             'eps_decay','primary_exploration_eps','act_random_first_n_episodes',
             'discount_factor','replay_buffer_size','replay_batch_size',
-            'tau_actor','tau_critic','lr_actor','lr_critic',''
+            'tau_actor','tau_critic','lr_actor','lr_critic',
         ])(*params)
     print(params)
     agent = DDPG(task, discount_factor=params.discount_factor,
