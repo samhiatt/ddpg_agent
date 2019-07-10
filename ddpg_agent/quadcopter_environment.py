@@ -86,7 +86,7 @@ class Task():
 #         horiz_distance_from_goal = np.sqrt((self.sim.pose[0]-self.target_pos[0])**2
 #                                            +(self.sim.pose[1]-self.target_pos[1])**2)
         # Reward for going up, up to 10m above the goal height
-        if self.sim.v[2]>0 and self.pose[2]<(self.target_pos[2]+10):
+        if self.sim.v[2]>0 and self.sim.pose[2]<(self.target_pos[2]+10):
             reward += 1
         # Penalty for falling
         if self.sim.v[2]<0:
