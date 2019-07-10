@@ -193,6 +193,7 @@ class DDPG():
 
     def preprocess_state(self, state):
         res = np.array(state, copy=True)
+        #import pdb; pdb.set_trace()
         for i in range(self.env.observation_space.shape[0]):
             res[i] = self.observation_scalers[i].transform(np.array(state[i]).reshape(-1,1))[0]
         return res
@@ -342,7 +343,7 @@ class DDPG():
         while True:
             noise_sample = self.noise.sample() * max(0,eps) # some noise for exploration
             raw_action = np.zeros(self.action_size)+(self.env.action_space.high - self.env.action_space.low)/2.
-            action = noise_sample
+            action = list(np.clip(noise_sample, self.env.action_space.low, self.env.action_space.high))
             if not act_random:
                 raw_action = self.act(next_state)
                 action = list(np.clip(raw_action + noise_sample, self.env.action_space.low, self.env.action_space.high))

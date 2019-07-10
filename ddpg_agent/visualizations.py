@@ -198,7 +198,7 @@ labels = ['time', 'x', 'y', 'z', 'phi', 'theta', 'psi', 'x_velocity',
 def visualize_quad_agent(agent, q_a_frames_spec=None):
     def get_cbar_ax(sgs):
         return fig.add_subplot(sgs.subgridspec(10,1)[1:-1])
-    
+
     def show_current_pos(ax):
         state = agent.last_state
         ydim = q_a_frames_spec.y_dim
@@ -207,7 +207,7 @@ def visualize_quad_agent(agent, q_a_frames_spec=None):
         x=state[xdim]
         y=state[ydim]
         ax.plot(x, y, 'ro')
-        
+
     def q_subplot(gs,im_arr,title):
         # TODO: Show current state as a point on plot
         ax = fig.add_subplot(gs)
@@ -215,7 +215,7 @@ def visualize_quad_agent(agent, q_a_frames_spec=None):
         show_current_pos(ax)
         cb = plt.colorbar(im,ax=ax,shrink=.8,pad=.02)
         ax.set_title(title)
-        
+
     def gradients_subplot(gs, i, title=""):
         sgs=gs.subgridspec(1,12,wspace=.5)
         if i%2==0: # if on the left side put colorbar on the left
@@ -229,7 +229,7 @@ def visualize_quad_agent(agent, q_a_frames_spec=None):
         im=imax.pcolor(xs,ys,q_a_frame.action_gradients[:,:,i],cmap='RdYlGn',vmin=-extr,vmax=extr)
         cb = plt.colorbar(im,ax=imax,cax=cbax)
         if i%2==0: cb.ax.yaxis.set_ticks_position('left')
-            
+
     def policy_subplot(gs,i):
         sgs=gs.subgridspec(1,14,wspace=.4)
         if i%2==0: # if on the left side put colorbar on the left
@@ -244,21 +244,21 @@ def visualize_quad_agent(agent, q_a_frames_spec=None):
         if i==0: ax.set_title(" "*42+"Policy")
         cb = plt.colorbar(im,ax=ax,cax=cbax)
         if i%2==0: cb.ax.yaxis.set_ticks_position('left')
-    
+
     if q_a_frames_spec is None:
         q_a_frames_spec = agent.q_a_frames_spec
     q_a_frame = agent.get_q_a_frames(q_a_frames_spec)
-        
-    title = "Agent at episode %i, step %i"%( 
+
+    title = "Agent at episode %i, step %i"%(
                 agent.history.get_training_episode_for_step(q_a_frame.step_idx-1).episode_idx,
                 q_a_frame.step_idx )
-    
+
     xs = q_a_frames_spec.xs
     ys = q_a_frames_spec.ys
     fig = plt.figure(figsize=(13,7))
     fig.suptitle(title)
     main_grid = gridspec.GridSpec(2, 4, figure=fig, wspace=.3, left=.05, right=.98)
-    
+
     q_subplot(main_grid[0,0], q_a_frame.Q_max, title="Q max")
     q_subplot(main_grid[0,1], q_a_frame.Q_std, title="Q standard dev.")
     q_subplot(main_grid[1,0], q_a_frame.max_action, title="Action[%i] at Q max"%agent.q_a_frames_spec.a_dim)
@@ -267,17 +267,17 @@ def visualize_quad_agent(agent, q_a_frames_spec=None):
     gradients_subplot(gradients_grid[0,5:-2], 1)
     gradients_subplot(gradients_grid[1,:5], 2)
     gradients_subplot(gradients_grid[1,5:-2], 3)
-    
+
     policy_grid = main_grid[:,2:].subgridspec(2,12,hspace=.02,wspace=.15)
     policy_subplot(policy_grid[0,:5], 0)
     policy_subplot(policy_grid[0,5:-2], 1)
     policy_subplot(policy_grid[1,:5], 2)
     policy_subplot(policy_grid[1,5:-2], 3)
-    
+
     fig.show()
-    
+
 from collections import defaultdict, namedtuple
-step_keys = ['step_idx','episode_idx', 
+step_keys = ['step_idx','episode_idx',
                'state',
                'raw_action','action','reward','done',
                'x','y','z','phi','theta','psi',
@@ -286,11 +286,11 @@ step_keys = ['step_idx','episode_idx',
 #                'rotor_speed1','rotor_speed2','rotor_speed3','rotor_speed4',
               ]
 Step=namedtuple("Step", step_keys)
-    
+
 def plot_quadcopter_episode(episode):
     fig = plt.figure(figsize=(15,7))
     fig.suptitle("Episode %i, score: %.3f, epsilon: %.4g"%(episode.episode_idx, episode.score, episode.epsilon))
-        
+
     main_cols = gridspec.GridSpec(1, 3, figure=fig)
     right_col_grid = main_cols[1:].subgridspec(2,3,wspace=.2,hspace=.3)
 
@@ -305,15 +305,15 @@ def plot_quadcopter_episode(episode):
     reward_norm = mpl.colors.SymLogNorm(linthresh=1, linscale=3, vmin=-extreme, vmax=extreme)
     reward_cmap = mpl.cm.ScalarMappable(norm=reward_norm, cmap=mpl.cm.get_cmap('RdYlGn'))
     reward_cmap.set_array([])
-    
+
     left_col = main_cols[0].subgridspec(3,1,hspace=.4)
-    
+
     reward_ax = fig.add_subplot(left_col[0], title="Step Rewards")
-    reward_ax.bar(range(len(episode.rewards)), episode.rewards, 
+    reward_ax.bar(range(len(episode.rewards)), episode.rewards,
                       color=[reward_cmap.to_rgba(r) for r in episode.rewards])
-    
+
     pos_ax = fig.add_subplot(left_col[1:], projection='3d', title="Flight Path")
-    pos_scatter = pos_ax.scatter(env_state['x'], env_state['y'], env_state['z'], 
+    pos_scatter = pos_ax.scatter(env_state['x'], env_state['y'], env_state['z'],
                                  c=[reward_cmap.to_rgba(r) for r in episode.rewards],
                                  edgecolor='k', )
 
@@ -331,7 +331,7 @@ def plot_quadcopter_episode(episode):
         ax.plot([a[i] for a in episode.actions], label='action + noise', color='red')#a_colors[i])
         if i==0: ax.legend(loc='lower center', bbox_to_anchor=(.5,.9))
     for i in range(4): plot_action(i)
-        
+
 #     def join_circular(arr):
 #         a=copy.copy(arr.flatten())
 # #         for i in range(1,len(a)):
@@ -341,7 +341,7 @@ def plot_quadcopter_episode(episode):
 #         for i in range(len(a)):
 #             if a[i]<0: a[i] += math.pi
 #         return a
-    
+
 #     def plot_state(ax,i):
 #         s_colors=['slateblue','royalblue','magenta','#1f77b4','#ff7f0e','powderblue']
 #         s_labels=['x pos','y pos','altitude','roll', 'pitch', 'yaw']
@@ -349,18 +349,18 @@ def plot_quadcopter_episode(episode):
 #                         ['steelblue','skyblue','powderblue'],
 #                         ['darkgreen','forestgreen','lightgreen'],
 #                         ['darkgoldenrod','goldenrod','wheat']]
-# #         ax.plot(np.array([s[i] for s in episode.states]).reshape(-1,1), 
+# #         ax.plot(np.array([s[i] for s in episode.states]).reshape(-1,1),
 # #                 color=s_color_shades[i][0], label=s_labels[i])
-# #         ax.plot(np.array([s[i+6] for s in episode.states]).reshape(-1,1), 
+# #         ax.plot(np.array([s[i+6] for s in episode.states]).reshape(-1,1),
 # #                 color=s_color_shades[i][1])
-# #         ax.plot(np.array([s[i+12] for s in episode.states]).reshape(-1,1), 
+# #         ax.plot(np.array([s[i+12] for s in episode.states]).reshape(-1,1),
 # #                 color=s_color_shades[i][2])
 #         X=np.arange(len(episode.states)*3)/3
 #         ax.plot(X,join_circular(np.array(list(zip(
 #                 [s[i] for s in episode.states],
 #                 [s[i+6] for s in episode.states],
-#                 [s[i+12] for s in episode.states]))).flatten()), 
-#             color=s_colors[i], 
+#                 [s[i+12] for s in episode.states]))).flatten()),
+#             color=s_colors[i],
 #             marker='x',
 #             lw=.1,
 #             label=s_labels[i])
@@ -372,18 +372,14 @@ def plot_quadcopter_episode(episode):
     v_ax.legend(loc='upper right')
 
     def fix_circular(arr):
-        # Not really sure why this works, but "folding" negative values back onto the positive ones 
+        # Not really sure why this works, but "folding" negative values back onto the positive ones
         # fixes the visualizations of position angles.
         a=copy.copy(arr)
         for i in range(len(a)):
-            if a[i]<0: a[i] += math.pi
-        return a - math.pi/2.
-#             if a[i]>math.pi:
-#                 a[i] -= math.pi
-#             a[i] -= math.pi/2.
-#         return a
-#         return arr
-    
+            a[i] += math.pi
+            if a[i]>math.pi: a[i]-=2*math.pi
+        return a
+
     rot_ax = fig.add_subplot(right_col_grid[1,1], title="Orientation", xlabel='step')
 #     X=np.arange(len(step_arr)*3)/3
     rot_ax.plot(fix_circular(env_state['phi']), label='phi', color='#1f77b4', marker='.', lw=.1)
@@ -393,7 +389,7 @@ def plot_quadcopter_episode(episode):
 #     #rot_ax.plot(X,psis.flatten(), color='darkgoldenrod', label='psi')
 #     for i in range(3,5): plot_state(rot_ax,i)
     rot_ax.legend(loc='upper right')
-    
+
     ang_v_ax = fig.add_subplot(right_col_grid[1,2], title="Angular Velocity", xlabel='step')
     ang_v_ax.plot(env_state['phi_velocity'], label="x")
     ang_v_ax.plot(env_state['theta_velocity'], label="y")
@@ -401,7 +397,8 @@ def plot_quadcopter_episode(episode):
     ang_v_ax.legend(loc='upper right')
 
     horiz_pos_ax = fig.add_subplot(right_col_grid[0,1], title="Horizontal Position")
-    horiz_pos_ax.scatter(env_state['x'], env_state['y'], 
+    horiz_pos_ax.scatter(env_state['x'], env_state['y'],
                       c=[reward_cmap.to_rgba(r) for r in episode.rewards],
                       edgecolor='k',)
-    return plt.gcf()
+    # return plt.gcf()
+    plt.show()

@@ -2,6 +2,7 @@ import math
 import numpy as np
 from ddpg_agent.contrib.physics_sim import PhysicsSim
 from collections import namedtuple
+import copy
 
 class Task():
     """Task (environment) that defines the goal and provides feedback to the agent."""
@@ -23,11 +24,15 @@ class Task():
         # TODO: Make action_repeat align with agent.action_repeat
         self.action_repeat = 3
 
-        self.state_size = self.action_repeat * 6 + 6
-        self.observation_space = Space( list(list(self.sim.lower_bounds) + \
-                                             [ -math.pi ]*3)*self.action_repeat + [float('-inf')]*6,
-                                       list(list(self.sim.upper_bounds) + \
-                                            [ math.pi ]*3)*self.action_repeat + [float('inf')]*6 )
+        self.state_size = self.action_repeat * 12
+        self.observation_space = Space(
+            list(np.hstack(( self.sim.lower_bounds, [ -math.pi ]*3, [float('-inf')]*6 )))*self.action_repeat,
+            list(np.hstack(( self.sim.upper_bounds, [ -math.pi ]*3, [float('inf') ]*6 )))*self.action_repeat,
+        )
+        # self.observation_space = Space( list(list(self.sim.lower_bounds) + \
+        #                                      [ -math.pi ]*3)*self.action_repeat + [float('-inf')]*6,
+        #                                list(list(self.sim.upper_bounds) + \
+        #                                     [ math.pi ]*3)*self.action_repeat + [float('inf')]*6 )
         self.action_space = Space([0,0,0,0], [900,900,900,900])
         self.action_size = 4
 
@@ -103,27 +108,16 @@ class Task():
 
     def step(self, rotor_speeds):
         """Uses action to obtain next state, reward, done."""
-        def zero_center_rotation(pose):
-            pose[3]=pose[3]-math.pi
-            pose[4]=pose[4]-math.pi
-            pose[5]=pose[5]-math.pi
-#             def _fix(p):
-#                 if p>math.pi: p -= math.pi
-#                 return p - math.pi/2.
-#             for p in [3,4,5]:
-#                 pose[p]=_fix(pose[p])
-
-            return pose
         reward = 0
         pose_all = []
         for _ in range(self.action_repeat):
             done = self.sim.next_timestep(rotor_speeds) # update the sim pose and velocities
             reward += self.get_reward()
 #             pose_all.append(self.sim.pose)
-            pose_all.append(zero_center_rotation(self.sim.pose))
-#         reward = np.tanh(reward)
-        next_state = list(np.concatenate(pose_all))+list(self.sim.v)+list(self.sim.angular_v)
-#             import pdb; pdb.set_trace()
+            pose_all.append(np.hstack(( self.sim.pose, self.sim.v, self.sim.angular_v )))
+        # next_state = list(np.concatenate(pose_all))+list(self.sim.v)+list(self.sim.angular_v)
+        next_state = np.concatenate(pose_all)
+        #import pdb; pdb.set_trace()
         # Punish and end episode for crashing
         if self.sim.pose[2]<=0:
 #             reward -= 100
@@ -146,8 +140,9 @@ class Task():
     def reset(self):
         """Reset the sim to start a new episode."""
         self.sim.reset()
-        state = list(np.concatenate([self.sim.pose] * self.action_repeat)) + \
-                list(self.sim.v) + list(self.sim.angular_v)
+        # state = list(np.concatenate([self.sim.pose] * self.action_repeat)) + \
+        #         list(self.sim.v) + list(self.sim.angular_v)
+        state = list(np.hstack((self.sim.pose, self.sim.v, self.sim.angular_v)))*self.action_repeat
         self.steps_within_goal = 0
         return state
 
