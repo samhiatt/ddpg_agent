@@ -345,7 +345,7 @@ class DDPG():
             action = noise_sample
             if not act_random:
                 raw_action = self.act(next_state)
-                action = list(np.clip(action + noise_sample, self.env.action_space.low, self.env.action_space.high))
+                action = list(np.clip(raw_action + noise_sample, self.env.action_space.low, self.env.action_space.high))
 
             sum_rewards=0
             # Repeat action `action_repeat` times, summing up rewards
