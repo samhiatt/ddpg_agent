@@ -20,7 +20,7 @@ def noise_evaluator(params):
     """ Evaluator to test different noise parameters looking to maximize average training_score.
         No model learning is done during this step.
     """
-    params = namedtuple('NoiseParams',['ou_mu','ou_theta','ou_sigma','n_episodes','eps'])(*params)
+    params = namedtuple('NoiseParams',['ou_mu','ou_theta','ou_sigma','n_episodes','eps)(*params)
     print(params)
 
     agent = DDPG(task,
@@ -41,12 +41,19 @@ def evaluator(params):
     """ Evaluator to test learning parameters, using the noise parameters learned using
         the evaluator above.
     """
-    agent = DDPG(task, discount_factor=params['discount_factor'],
-                 ou_mu=params['ou_mu'], ou_theta=params['ou_theta'], ou_sigma=params['ou_sigma'],
-                 replay_buffer_size=params['replay_buffer_size'],
-                 replay_batch_size=params['replay_batch_size'],
-                 tau_actor=params['tau_actor'], tau_critic=params['tau_critic'],
-                 lr_actor=params['lr_actor'], lr_critic=params['lr_critic'], #activation_fn_actor='tanh',
+    params = namedtuple('LearningParams',[
+            'ou_mu','ou_theta','ou_sigma','n_episodes','eps',
+            'eps_decay','primary_exploration_eps','act_random_first_n_episodes',
+            'discount_factor','replay_buffer_size','replay_batch_size',
+            'tau_actor','tau_critic','lr_actor','lr_critic',''
+        ])(*params)
+    print(params)
+    agent = DDPG(task, discount_factor=params.discount_factor,
+                 ou_mu=params.ou_mu, ou_theta=params.ou_theta, ou_sigma=params.ou_sigma,
+                 replay_buffer_size=params.replay_buffer_size,
+                 replay_batch_size=params.replay_batch_size,
+                 tau_actor=params.tau_actor, tau_critic=params.tau_critic,
+                 lr_actor=params.lr_actor, lr_critic=params.lr_critic, #activation_fn_actor='tanh',
     #              relu_alpha_actor=.01, relu_alpha_critic=.01,
     #              l2_reg_actor=.01, l2_reg_critic=.01,
     #              bn_momentum_actor=0, bn_momentum_critic=.7,
@@ -59,9 +66,9 @@ def evaluator(params):
                 )
     # agent.print_summary()
 
-    agent.train_n_episodes(params['n_episodes'], eps=params['eps'], eps_decay=params['eps_decay'],
-                           act_random_first_n_episodes=params['act_random_first_n_episodes'],
-                           primary_exploration_eps=params['primary_exploration_eps'],
+    agent.train_n_episodes(params.n_episodes, eps=params.eps, eps_decay=params.eps_decay,
+                           act_random_first_n_episodes=params.act_random_first_n_episodes,
+                           primary_exploration_eps=params.primary_exploration_eps,
                            )
 
     # Return a negative score (since hyperopt will minimize this function)
@@ -72,7 +79,7 @@ def evaluator(params):
 
 # labels = ['time', 'x', 'y', 'z', 'phi', 'theta', 'psi', 'x_velocity',
 #           'y_velocity', 'z_velocity', 'phi_velocity', 'theta_velocity',
-#           'psi_velocity', 'rotor_speed1', 'rotor_speed2', 'rotor_speed3', 'rotor_speed4']
+#           'psi_velocity', 'rotor_speed1', 'rotor_speed2', 'rotor_speed3', 'rotor_speed4
 # [task.sim.time] + list(task.sim.pose) + list(task.sim.v) + list(task.sim.angular_v) + list(rotor_speeds)
 
 # def episode_callback(episode_num):
