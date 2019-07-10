@@ -303,7 +303,8 @@ class DDPG():
                          run_tests=True, gen_q_a_frames_every_n_steps=0,
                          learn_from_test=False, draw_plots=False,
                          act_random_first_n_episodes=0,
-                         primary_exploration_eps=1, ):
+                         primary_exploration_eps=None, ):
+        if primary_exploration_eps is None: primary_exploration_eps = eps
         if eps_decay is None: eps_decay = 1/n_episodes
         n_training_episodes = len(self.history.training_episodes)
         for i_episode in range(n_training_episodes+1, n_training_episodes+n_episodes+1):
@@ -343,10 +344,10 @@ class DDPG():
         while True:
             noise_sample = self.noise.sample() * max(0,eps) # some noise for exploration
             raw_action = np.zeros(self.action_size)+(self.env.action_space.high - self.env.action_space.low)/2.
-            action = list(np.clip(noise_sample, self.env.action_space.low, self.env.action_space.high))
+            #action = list(np.clip(noise_sample, self.env.action_space.low, self.env.action_space.high))
             if not act_random:
                 raw_action = self.act(next_state)
-                action = list(np.clip(raw_action + noise_sample, self.env.action_space.low, self.env.action_space.high))
+            action = list(np.clip(raw_action + noise_sample, self.env.action_space.low, self.env.action_space.high))
 
             sum_rewards=0
             # Repeat action `action_repeat` times, summing up rewards

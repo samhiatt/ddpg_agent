@@ -376,7 +376,6 @@ def plot_quadcopter_episode(episode):
         # fixes the visualizations of position angles.
         a=copy.copy(arr)
         for i in range(len(a)):
-            a[i] += math.pi
             if a[i]>math.pi: a[i]-=2*math.pi
         return a
 
