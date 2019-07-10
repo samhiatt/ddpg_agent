@@ -20,7 +20,7 @@ def noise_evaluator(params):
     """ Evaluator to test different noise parameters looking to maximize average training_score.
         No model learning is done during this step.
     """
-    params = namedtuple('NoiseParams',['ou_mu','ou_theta','ou_sigma','n_episodes','eps)(*params)
+    params = namedtuple('NoiseParams',['ou_mu','ou_theta','ou_sigma','n_episodes','eps')(*params)
     print(params)
 
     agent = DDPG(task,
