@@ -29,7 +29,7 @@ def noise_evaluator(params):
                  replay_batch_size=params.n_episodes, # suppress model training
                 )
     # agent.print_summary()
-    agent.train_n_episodes(params.n_episodes, eps_decay=0,
+    agent.train_n_episodes(params.n_episodes, eps_decay=0, run_tests=False,
                            # Notice we're acting randomly for all n_episodes
                            act_random_first_n_episodes=params.n_episodes,
                            primary_exploration_eps=params.eps, )
