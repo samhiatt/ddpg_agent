@@ -341,7 +341,7 @@ class DDPG():
         q_a_frame = None
         while True:
             noise_sample = self.noise.sample() * max(0,eps) # some noise for exploration
-            raw_action = 0
+            raw_action = np.zeros(self.action_size)+(self.env.action_space.high - self.env.action_space.low)/2.
             action = noise_sample
             if not act_random:
                 raw_action = self.act(next_state)

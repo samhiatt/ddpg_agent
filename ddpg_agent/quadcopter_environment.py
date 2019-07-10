@@ -80,13 +80,13 @@ class Task():
         reward -= (self.sim.angular_v[0]/30.)**2 + (self.sim.angular_v[1]/30.)**2
 
         # Punishment for crashing (altitude < 1 m)
-#         if self.sim.pose[2]<=0: reward -= 1000
+        if self.sim.pose[2]<=0: reward -= 100
 #         if self.sim.pose[2]<2: reward -= 1
         # Reward for being within goal radius
 #         horiz_distance_from_goal = np.sqrt((self.sim.pose[0]-self.target_pos[0])**2
 #                                            +(self.sim.pose[1]-self.target_pos[1])**2)
-        # Reward for going up
-        if self.sim.v[2]>0:
+        # Reward for going up, up to 10m above the goal height
+        if self.sim.v[2]>0 and self.pose[2]<(self.target_pos[2]+10):
             reward += 1
         # Penalty for falling
         if self.sim.v[2]<0:
@@ -134,9 +134,9 @@ class Task():
 
         # end episode if at goal state
 #         if self.steps_within_goal / self.action_repeat >= self.target_steps_within_goal:
-        if self.sim.pose[2] > self.target_pos[2]:
-            reward += 1000
-            done = True
+        # if self.sim.pose[2] > self.target_pos[2]:
+        #     reward += 1000
+        #     done = True
         # Scale reward.
         # TODO: How can the agent detect need for reward scaling automatically?
 #         reward = np.log1p(reward) if reward>0 else np.log1p(-reward)
