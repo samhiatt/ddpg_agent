@@ -5,7 +5,7 @@ class Actor:
     """Actor (Policy) Model."""
 
     def __init__(self, state_size, action_size, action_low, action_high, learn_rate,
-                 activation_fn, input_bn_momentum, bn_momentum, relu_alpha, l2_reg, 
+                 activation_fn, input_bn_momentum, bn_momentum, relu_alpha, l2_reg,
                  dropout, hidden_layer_sizes, activity_l2_reg, output_action_regularizer):
         """Initialize parameters and build model.
 
@@ -85,12 +85,14 @@ class Actor:
         # Incorporate any additional losses here (e.g. from regularizers)
         # TODO: Try adding regularizers to penalize:
         #     - low or high action values
-        #     - 
+        #     -
 #         if self.output_action_regularizer:
 #             mid_action = (self.action_high-self.action_low)/2.
 #             loss += self.output_action_regularizer*K.mean(K.square(actions-mid_action))
+        # if self.output_action_regularizer:
+        #     loss += self.output_action_regularizer*K.sum(K.square(net))
         if self.output_action_regularizer:
-            loss += self.output_action_regularizer*K.sum(K.square(net))
+            loss += self.output_action_regularizer*K.var(net)
 #         if self.output_action_regularizer:
 #             loss += self.output_action_regularizer*K.mean(K.square(raw_actions))
 
@@ -147,8 +149,8 @@ class Critic:
         actions = layers.Input(shape=(self.action_size,), name='actions')
         net_states = states
         net_actions = actions
-        
-        if self.input_bn_momentum>0: 
+
+        if self.input_bn_momentum>0:
             net_states = layers.BatchNormalization(momentum=self.input_bn_momentum)(net_states)
             net_actions = layers.BatchNormalization(momentum=self.input_bn_momentum)(net_actions)
 
