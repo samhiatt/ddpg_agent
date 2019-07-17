@@ -56,7 +56,7 @@ LearningParams = namedtuple('LearningParams',[
         'ou_mu','ou_theta','ou_sigma','n_episodes','eps',
         'eps_decay','primary_exploration_eps','act_random_first_n_episodes',
         'discount_factor','replay_buffer_size','replay_batch_size',
-        'tau_actor','tau_critic','lr_actor','lr_critic',
+        'tau_actor','tau_critic','lr_actor','lr_critic','output_action_regularizer',
     ])
 
 def evaluator(params):
@@ -82,7 +82,7 @@ def evaluator(params):
         #              input_bn_momentum_actor=.7,
         #              input_bn_momentum_critic=.7,
         #              activity_l2_reg=50,
-        #              output_action_regularizer=10,
+                     output_action_regularizer=params.output_action_regularizer,
                     )
         # agent.print_summary()
 
