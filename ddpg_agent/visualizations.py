@@ -401,3 +401,11 @@ def plot_quadcopter_episode(episode):
                       edgecolor='k',)
     # return plt.gcf()
     plt.show()
+
+def plot_scores(training_scores=[], test_scores=[]):
+    plt.title("Learning curve")
+    plt.ylabel("Score")
+    plt.xlabel("Episode")
+    plt.plot(test_scores, label='test')
+    plt.plot(training_scores, label='training')
+    plt.legend();

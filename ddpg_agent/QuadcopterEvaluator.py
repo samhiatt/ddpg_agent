@@ -18,11 +18,13 @@ task = Task(init_pose=np.array([0., 0., 10, 0., 0., 0.]),
             target_pos=np.array([0., 0., 20.]),
            )
 
+NoiseParams = namedtuple('NoiseParams',['ou_mu','ou_theta','ou_sigma','n_episodes','eps'])
+
 def noise_evaluator(params):
     """ Evaluator to test different noise parameters looking to maximize average training_score.
         No model learning is done during this step.
     """
-    params = namedtuple('NoiseParams',['ou_mu','ou_theta','ou_sigma','n_episodes','eps'])(*params)
+    params = NoiseParams(**params)
     print(params)
     scores = []
     histories = []
@@ -46,51 +48,66 @@ def noise_evaluator(params):
             'loss_variance': np.var(scores),
             'attachments':{
                 'history': json.dumps(histories).encode('utf-8'),
-                # 'scores':str(scores),
-                # 'scores':'averylongstring...'.encode('utf-8'),
                 },
             'scores':scores,
             }
 
+LearningParams = namedtuple('LearningParams',[
+        'ou_mu','ou_theta','ou_sigma','n_episodes','eps',
+        'eps_decay','primary_exploration_eps','act_random_first_n_episodes',
+        'discount_factor','replay_buffer_size','replay_batch_size',
+        'tau_actor','tau_critic','lr_actor','lr_critic',
+    ])
 
 def evaluator(params):
     """ Evaluator to test learning parameters, using the noise parameters learned using
         the evaluator above.
     """
-    params = namedtuple('LearningParams',[
-            'ou_mu','ou_theta','ou_sigma','n_episodes','eps',
-            'eps_decay','primary_exploration_eps','act_random_first_n_episodes',
-            'discount_factor','replay_buffer_size','replay_batch_size',
-            'tau_actor','tau_critic','lr_actor','lr_critic',
-        ])(*params)
+    params = LearningParams(*params)
     print(params)
-    agent = DDPG(task, discount_factor=params.discount_factor,
-                 ou_mu=params.ou_mu, ou_theta=params.ou_theta, ou_sigma=params.ou_sigma,
-                 replay_buffer_size=params.replay_buffer_size,
-                 replay_batch_size=params.replay_batch_size,
-                 tau_actor=params.tau_actor, tau_critic=params.tau_critic,
-                 lr_actor=params.lr_actor, lr_critic=params.lr_critic, #activation_fn_actor='tanh',
-    #              relu_alpha_actor=.01, relu_alpha_critic=.01,
-    #              l2_reg_actor=.01, l2_reg_critic=.01,
-    #              bn_momentum_actor=0, bn_momentum_critic=.7,
-    #              q_a_frames_spec=q_a_frames_spec,
-    #              do_preprocessing=False,
-    #              input_bn_momentum_actor=.7,
-    #              input_bn_momentum_critic=.7,
-    #              activity_l2_reg=50,
-    #              output_action_regularizer=10,
-                )
-    # agent.print_summary()
+    scores = []
+    histories = []
+    for i in range(3):
+        agent = DDPG(task, discount_factor=params.discount_factor,
+                     ou_mu=params.ou_mu, ou_theta=params.ou_theta, ou_sigma=params.ou_sigma,
+                     replay_buffer_size=params.replay_buffer_size,
+                     replay_batch_size=params.replay_batch_size,
+                     tau_actor=params.tau_actor, tau_critic=params.tau_critic,
+                     lr_actor=params.lr_actor, lr_critic=params.lr_critic, #activation_fn_actor='tanh',
+        #              relu_alpha_actor=.01, relu_alpha_critic=.01,
+        #              l2_reg_actor=.01, l2_reg_critic=.01,
+        #              bn_momentum_actor=0, bn_momentum_critic=.7,
+        #              q_a_frames_spec=q_a_frames_spec,
+        #              do_preprocessing=False,
+        #              input_bn_momentum_actor=.7,
+        #              input_bn_momentum_critic=.7,
+        #              activity_l2_reg=50,
+        #              output_action_regularizer=10,
+                    )
+        # agent.print_summary()
 
-    agent.train_n_episodes(params.n_episodes, eps=params.eps, eps_decay=params.eps_decay,
-                           act_random_first_n_episodes=params.act_random_first_n_episodes,
-                           primary_exploration_eps=params.primary_exploration_eps,
-                           )
+        agent.train_n_episodes(params.n_episodes, eps=params.eps, eps_decay=params.eps_decay,
+                               act_random_first_n_episodes=params.act_random_first_n_episodes,
+                               primary_exploration_eps=params.primary_exploration_eps,
+                               )
 
-    # Return a negative score (since hyperopt will minimize this function)
-    # Mean test score/variance, last 100 episodes
-    last_n_scores = [e.score for e in agent.history.test_episodes[-100:]]
-    return -np.mean(last_n_scores)/np.std(last_n_scores)
+        # Return a negative score (since hyperopt will minimize this function)
+        # Mean test score/variance, last 100 episodes
+        last_n_scores = [e.score for e in agent.history.test_episodes[-100:]]
+        scores.append(np.mean(last_n_scores)/np.std(last_n_scores))
+        histories.append( dict(agent.history) )
+
+        #return -np.mean(last_n_scores)/np.std(last_n_scores)
+
+    return {'status':STATUS_OK,
+        'loss': -np.mean(scores),
+        'loss_variance': np.var(scores),
+        'attachments':{
+            'history': json.dumps(histories).encode('utf-8'),
+            },
+        'scores':scores,
+        }
+
 
 
 
