@@ -5,6 +5,8 @@ from ddpg_agent.visualizations import plot_quadcopter_episode
 from ddpg_agent.quadcopter_environment import Task
 import numpy as np
 from collections import namedtuple
+from hyperopt import STATUS_OK
+import json
 
 task = Task(init_pose=np.array([0., 0., 10, 0., 0., 0.]),
             #init_pose=np.array([0., 0., 10, math.pi/2., math.pi/2., 0.]),
@@ -22,20 +24,34 @@ def noise_evaluator(params):
     """
     params = namedtuple('NoiseParams',['ou_mu','ou_theta','ou_sigma','n_episodes','eps'])(*params)
     print(params)
-
-    agent = DDPG(task,
-                 ou_mu=params.ou_mu, ou_theta=params.ou_theta, ou_sigma=params.ou_sigma,
-                 replay_buffer_size=0,
-                 replay_batch_size=params.n_episodes, # suppress model training
-                )
-    # agent.print_summary()
-    agent.train_n_episodes(params.n_episodes, eps_decay=0, run_tests=False,
-                           # Notice we're acting randomly for all n_episodes
-                           act_random_first_n_episodes=params.n_episodes,
-                           primary_exploration_eps=params.eps, )
-
+    scores = []
+    histories = []
+    for i in range(3):
+        agent = DDPG(task,
+                     ou_mu=params.ou_mu, ou_theta=params.ou_theta, ou_sigma=params.ou_sigma,
+                     replay_buffer_size=0,
+                     replay_batch_size=params.n_episodes, # suppress model training
+                    )
+        # agent.print_summary()
+        agent.train_n_episodes(params.n_episodes, eps_decay=0, run_tests=False,
+                               # Notice we're acting randomly for all n_episodes
+                               act_random_first_n_episodes=params.n_episodes,
+                               primary_exploration_eps=params.eps, )
+        scores.append( np.mean([ep.score for ep in agent.history.training_episodes]) )
+        histories.append( dict(agent.history) )
     # Return a negative score (since hyperopt will minimize this function)
-    return -np.mean([ep.score for ep in agent.history.training_episodes])
+    # return -np.mean(scores)
+    return {'status':STATUS_OK,
+            'loss': -np.mean(scores),
+            'loss_variance': np.var(scores),
+            'attachments':{
+                'history': json.dumps(histories).encode('utf-8'),
+                # 'scores':str(scores),
+                # 'scores':'averylongstring...'.encode('utf-8'),
+                },
+            'scores':scores,
+            }
+
 
 def evaluator(params):
     """ Evaluator to test learning parameters, using the noise parameters learned using

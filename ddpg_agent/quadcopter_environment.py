@@ -4,6 +4,14 @@ from ddpg_agent.contrib.physics_sim import PhysicsSim
 from collections import namedtuple
 import copy
 
+QuadcopterState = namedtuple("QuadcopterState",[
+                     'x', 'y', 'z', 'phi', 'theta', 'psi',
+                     'x_velocity', 'y_velocity', 'z_velocity',
+                     'phi_velocity', 'theta_velocity', 'psi_velocity',
+                     'x_linear_accel','y_linear_accel','z_linear_accel',
+                     'phi_angular_accel','theta_angular_accel','psi_angular_accel',
+                    ])
+
 class Task():
     """Task (environment) that defines the goal and provides feedback to the agent."""
     def __init__(self, init_pose=None, init_velocities=None,
@@ -54,13 +62,7 @@ class Task():
                 vert_distance_from_goal <= self.vert_dist_thresh
 
     def get_full_state(self):
-        return namedtuple("QuadcopterState",[
-                             'x', 'y', 'z', 'phi', 'theta', 'psi',
-                             'x_velocity', 'y_velocity', 'z_velocity',
-                             'phi_velocity', 'theta_velocity', 'psi_velocity',
-                             'x_linear_accel','y_linear_accel','z_linear_accel',
-                             'phi_angular_accel','theta_angular_accel','psi_angular_accel',
-                            ])( *self.sim.pose, *self.sim.v, *self.sim.angular_v,
+        return QuadcopterState( *self.sim.pose, *self.sim.v, *self.sim.angular_v,
                                 *self.sim.linear_accel, *self.sim.angular_accels )
 
     def get_reward(self):

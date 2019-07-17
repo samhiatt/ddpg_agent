@@ -5,6 +5,7 @@ import numpy as np
 import copy
 import random
 import sys
+import json
 from collections import namedtuple, deque, defaultdict
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
@@ -374,10 +375,12 @@ class DDPG():
             if done:
                 if train:
                     self.episodes += 1
-                    if self.history.max_training_score is None or episode_history.score > self.history.max_training_score:
+                    if self.history.max_training_score is None or \
+                    episode_history.score > self.history.max_training_score:
                         self.history.max_training_score = episode_history.score
                         self.max_training_score_callback(episode_history)
-                elif self.history.max_test_score is None or episode_history.score > self.history.max_test_score:
+                elif self.history.max_test_score is None or \
+                episode_history.score > self.history.max_test_score:
                     self.history.max_test_score = episode_history.score
                     self.max_test_score_callback(episode_history)
                 break
@@ -642,6 +645,13 @@ class TrainingHistory:
         return "TrainingHistory ( %i training_episodes, %i test_episodes, %i qa_grids, last_step: %i )"%\
                 (len(self.training_episodes), len(self.test_episodes), len(self.q_a_frames), self.last_step)
 
+    def __iter__(self):
+        for key in ['test_episodes','training_episodes','max_test_score','max_training_score']:
+            if key in ['test_episodes','training_episodes']:
+                yield (key, [ dict(ep) for ep in getattr(self,key)])
+            else:
+                yield (key, getattr(self,key))
+
     def add_q_a_frame(self, q_a_frame):
         self.q_a_frames.append(q_a_frame)
 
@@ -692,6 +702,37 @@ class EpisodeHistory:
         self.env_state = []
 
         self.score = self._get_score()
+
+    def _fromDict(obj):
+        qs = namedtuple("QuadcopterState",[
+                     'x', 'y', 'z', 'phi', 'theta', 'psi',
+                     'x_velocity', 'y_velocity', 'z_velocity',
+                     'phi_velocity', 'theta_velocity', 'psi_velocity',
+                     'x_linear_accel','y_linear_accel','z_linear_accel',
+                     'phi_angular_accel','theta_angular_accel','psi_angular_accel',
+                    ])
+        eh = EpisodeHistory(obj['episode_idx'],obj['epsilon'])
+        eh.steps = obj['steps']
+        eh.first_step = obj['first_step']
+        eh.last_step = obj['last_step']
+        eh.states = obj['states']
+        eh.raw_actions = obj['raw_actions']
+        eh.actions = obj['actions']
+        eh.rewards = obj['rewards']
+        eh.env_state = [qs(**dict(ep)) for ep in obj['env_state']]
+        return eh
+
+    def __iter__(self):
+        for key in ['episode_idx','epsilon','steps','first_step','last_step',\
+                    'states','raw_actions','actions','rewards','env_state']:
+            attr = getattr(self,key)
+            if type(attr)==list:
+                yield (key, [a.tolist() \
+                                if hasattr(a,'tolist') else \
+                                dict(a._asdict()) if hasattr(a,'_asdict') else \
+                                a for a in attr])
+            else:
+                yield(key, attr)
 
     def _get_score(self):
         return sum(self.rewards)
