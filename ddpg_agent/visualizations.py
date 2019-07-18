@@ -311,6 +311,7 @@ def plot_quadcopter_episode(episode):
     reward_ax = fig.add_subplot(left_col[0], title="Step Rewards")
     reward_ax.bar(range(len(episode.rewards)), episode.rewards,
                       color=[reward_cmap.to_rgba(r) for r in episode.rewards])
+    reward_ax.set_yscale("symlog")
 
     pos_ax = fig.add_subplot(left_col[1:], projection='3d', title="Flight Path")
     pos_scatter = pos_ax.scatter(env_state['x'], env_state['y'], env_state['z'],
