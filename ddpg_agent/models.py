@@ -86,15 +86,15 @@ class Actor:
         # TODO: Try adding regularizers to penalize:
         #     - low or high action values
         #     -
-#         if self.output_action_regularizer:
-#             mid_action = (self.action_high-self.action_low)/2.
-#             loss += self.output_action_regularizer*K.mean(K.square(actions-mid_action))
+        if self.output_action_regularizer:
+            mid_action = (self.action_high-self.action_low)/2.
+            loss += self.output_action_regularizer*K.mean(K.square(actions-mid_action))
         # if self.output_action_regularizer:
         #     loss += self.output_action_regularizer*K.sum(K.square(net))
-        if self.output_action_regularizer:
-            loss += self.output_action_regularizer*K.var(net)
-#         if self.output_action_regularizer:
-#             loss += self.output_action_regularizer*K.mean(K.square(raw_actions))
+        # if self.output_action_regularizer:
+        #     loss += self.output_action_regularizer*K.var(net)
+        # if self.output_action_regularizer:
+        #     loss += self.output_action_regularizer*K.mean(K.square(raw_actions))
 
         optimizer = optimizers.Adam(lr=self.learn_rate)
         updates_op = optimizer.get_updates(params=self.model.trainable_weights, loss=loss)
