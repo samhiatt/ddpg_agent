@@ -32,11 +32,18 @@ class Task():
         # TODO: Make action_repeat align with agent.action_repeat
         self.action_repeat = 3
 
-        self.state_size = self.action_repeat * 12
+        # 6 dims for position/orientation, 6 dims for velocities, 6 dims for accelerations
+        self.state_size = 18
         self.observation_space = Space(
-            list(np.hstack(( self.sim.lower_bounds, [ -math.pi ]*3, [float('-inf')]*6 )))*self.action_repeat,
-            list(np.hstack(( self.sim.upper_bounds, [ -math.pi ]*3, [float('inf') ]*6 )))*self.action_repeat,
-        )
+         self.observation_space = Space(
+            np.hstack(( self.sim.lower_bounds, [-math.pi]*3, [float('-inf')]*6, [float('-inf')]*6)),
+            np.hstack(( self.sim.upper_bounds, [math.pi]*3, [float('inf')]*6, [float('inf')]*6)) )
+
+        # self.state_size = self.action_repeat * 12
+        # self.observation_space = Space(
+        #     list(np.hstack(( self.sim.lower_bounds, [ -math.pi ]*3, [float('-inf')]*6 )))*self.action_repeat,
+        #     list(np.hstack(( self.sim.upper_bounds, [ -math.pi ]*3, [float('inf') ]*6 )))*self.action_repeat,
+        # )
         # self.observation_space = Space( list(list(self.sim.lower_bounds) + \
         #                                      [ -math.pi ]*3)*self.action_repeat + [float('-inf')]*6,
         #                                list(list(self.sim.upper_bounds) + \
@@ -120,10 +127,14 @@ class Task():
             done = self.sim.next_timestep(rotor_speeds) # update the sim pose and velocities
             reward += self.get_reward()
 #             pose_all.append(self.sim.pose)
-            pose_all.append(np.hstack(( self.sim.pose, self.sim.v, self.sim.angular_v )))
+            # pose_all.append(np.hstack(( self.sim.pose, self.sim.v, self.sim.angular_v )))
         # next_state = list(np.concatenate(pose_all))+list(self.sim.v)+list(self.sim.angular_v)
-        next_state = np.concatenate(pose_all)
-        #import pdb; pdb.set_trace()
+        # next_state = np.concatenate(pose_all)
+        # 6 dims for position/orientation, 6 dims for velocities, 6 dims for accelerations
+        next_state = np.hstack(( self.sim.pose,
+                                 self.sim.v, self.sim.angular_v,
+                                 self.sim.linear_accel, self.sim.angular_accels ))
+
         # Punish and end episode for crashing
         if self.sim.pose[2]<=0:
 #             reward -= 100
@@ -148,7 +159,13 @@ class Task():
         self.sim.reset()
         # state = list(np.concatenate([self.sim.pose] * self.action_repeat)) + \
         #         list(self.sim.v) + list(self.sim.angular_v)
-        state = list(np.hstack((self.sim.pose, self.sim.v, self.sim.angular_v)))*self.action_repeat
+        # state = list(np.hstack((self.sim.pose, self.sim.v, self.sim.angular_v)))*self.action_repeat
+
+        # 6 dims for position/orientation, 6 dims for velocities, 6 dims for accelerations
+        state = np.hstack(( self.sim.pose,
+                             self.sim.v, self.sim.angular_v,
+                             self.sim.linear_accel, self.sim.angular_accels ))
+
         self.steps_within_goal = 0
         return state
 
