@@ -719,6 +719,7 @@ class EpisodeHistory:
         eh.raw_actions = obj['raw_actions']
         eh.actions = obj['actions']
         eh.rewards = obj['rewards']
+        eh.score = np.sum(obj['rewards'])
         eh.env_state = [qs(**dict(ep)) for ep in obj['env_state']]
         return eh
 

@@ -79,12 +79,16 @@ class Task():
         #Intermediate reward for flying at altitude
 #         if np.abs(self.sim.pose[2] - self.target_pos[2]) < 1:
 #             reward += 1
+
+        #Reward for horizontal distance to goal
+        horiz_dist = np.sqrt((self.sim.pose[0]-self.target_pos[0])**2 +(self.sim.pose[1]-self.target_pos[1])**2)
         vert_dist = np.abs(self.target_pos[2]-self.sim.pose[2])
-        if vert_dist<10:
+        if vert_dist<10 and horiz_dist<10:
             reward += 10-vert_dist
+            reward += .1*(10-horiz_dist)
 
         # Punish for high angular velocity
-        reward -= (self.sim.angular_v[0]/30.)**2 + (self.sim.angular_v[1]/30.)**2
+        # reward -= (self.sim.angular_v[0]/30.)**2 + (self.sim.angular_v[1]/30.)**2
 
         # Punishment for crashing (altitude < 1 m)
         if self.sim.pose[2]<=0: reward -= 100
@@ -93,11 +97,11 @@ class Task():
 #         horiz_distance_from_goal = np.sqrt((self.sim.pose[0]-self.target_pos[0])**2
 #                                            +(self.sim.pose[1]-self.target_pos[1])**2)
         # Reward for going up, up to 10m above the goal height
-        if self.sim.v[2]>0 and self.sim.pose[2]<(self.target_pos[2]+10):
-            reward += 1
+        # if self.sim.v[2]>0 and self.sim.pose[2]<(self.target_pos[2]+10):
+        #     reward += 1
         # Penalty for falling
-        if self.sim.v[2]<0:
-            reward -= .01*(self.sim.v[2]**2)
+        # if self.sim.v[2]<0:
+        #     reward -= .01*(self.sim.v[2]**2)
 
 #         if self.reached_goal():
 #             self.steps_within_goal += 1
