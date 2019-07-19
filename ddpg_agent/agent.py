@@ -338,7 +338,8 @@ class DDPG():
         else: episode_history = self.history.new_test_episode(self.episodes,eps)
         q_a_frame = None
         while True:
-            noise_sample = self.noise.sample() * max(0,eps) # some noise for exploration
+            action_range = self.env.action_space.high - self.env.action_space.low
+            noise_sample = action_range * self.noise.sample() * max(0,eps) # some noise for exploration
             raw_action = np.zeros(self.action_size)+(self.env.action_space.high - self.env.action_space.low)/2.
             #action = list(np.clip(noise_sample, self.env.action_space.low, self.env.action_space.high))
             if not act_random:
