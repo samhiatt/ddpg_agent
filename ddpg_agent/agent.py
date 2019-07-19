@@ -194,7 +194,6 @@ class DDPG():
 
     def preprocess_state(self, state):
         res = np.array(state, copy=True)
-        #import pdb; pdb.set_trace()
         for i in range(self.env.observation_space.shape[0]):
             res[i] = self.observation_scalers[i].transform(np.array(state[i]).reshape(-1,1))[0]
         return res
@@ -207,11 +206,11 @@ class DDPG():
         return res
 
     def preprocess_action(self, action):
-        return self.action_scaler.transform(np.array(action).reshape(-1,self.action_size))[0]
+        return self.action_scaler.transform(np.array(action, copy=True).reshape(-1,self.action_size))[0]
 
     def transform_action(self, preprocessed_action):
         return self.action_scaler.inverse_transform(
-            np.array(preprocessed_action).reshape(-1,self.action_size))[0]
+            np.array(preprocessed_action, copy=True).reshape(-1,self.action_size))[0]
 
     def reset_episode(self):
         self.noise.reset()
@@ -224,8 +223,9 @@ class DDPG():
          # Save experience / reward
         if self.do_preprocessing:
             next_state = self.preprocess_state(next_state)
-#             action = self.preprocess_action(action)
+            action = self.preprocess_action(action)
 #             reward = self.preprocess_reward(reward)
+        # import pdb; pdb.set_trace()
         self.memory.add(self.last_state, action, reward, next_state, done)
         # TODO: scale actions and rewards
 
@@ -244,14 +244,10 @@ class DDPG():
             state = self.last_state
         else:
             if self.do_preprocessing: state = self.preprocess_state(state)
+
         action = self.actor_local.model.predict(np.reshape(state, [-1, self.state_size]))[0]
-        # noise_sample = self.noise.sample() * max(0,eps) # add some noise for exploration
-        #
-        # res = list(np.clip(action + noise_sample, self.env.action_space.low, self.env.action_space.high))
-        # if include_raw_actions:
-        #     return res, action
-        # else:
-        #     return res
+        if self.do_preprocessing:
+            action = self.transform_action(action)
         return action
 
     def learn(self, experiences):
@@ -412,18 +408,18 @@ class DDPG():
 
             s=copy.copy(self.last_state)
             # Special case for quadcopter with action_repeat=3
-            def adjust_state_position(dim, val):
-                # if we're visualizing a spatial dimension
-                if len(s)>14:
-                    orig_val = s[x_dim]
-                    diff = val - orig_val
-                    s[dim+6] += diff
-                    s[dim+12] += diff
-                s[dim]=val
-#             s[x_dim]=x
-#             s[y_dim]=y
-            adjust_state_position(x_dim,x)
-            adjust_state_position(y_dim,y)
+#             def adjust_state_position(dim, val):
+#                 # if we're visualizing a spatial dimension
+#                 if len(s)>14:
+#                     orig_val = s[x_dim]
+#                     diff = val - orig_val
+#                     s[dim+6] += diff
+#                     s[dim+12] += diff
+#                 s[dim]=val
+# #             s[x_dim]=x
+# #             s[y_dim]=y
+#             adjust_state_position(x_dim,x)
+#             adjust_state_position(y_dim,y)
             return s
         raw_states = np.array([[ get_state(x,y) for x in xs ] for y in ys ]).reshape(nx*ny, self.state_size)
 
@@ -435,12 +431,16 @@ class DDPG():
 
         preprocessed_states = np.array([ self.preprocess_state(s) for s in raw_states]
                                       ) if self.do_preprocessing else raw_states
+        preprocessed_actions = np.array([ self.preprocess_action(a) for a in actions ]
+                                      ) if self.do_preprocessing else actions
         Q = self.critic_local.model.predict_on_batch(
-                        [np.repeat(preprocessed_states,na,axis=0),actions]).reshape((ny,nx,na))
+                [np.repeat(preprocessed_states,na,axis=0),preprocessed_actions]).reshape((ny,nx,na))
         Q_max = np.max(Q,axis=2)
         Q_std = np.std(Q,axis=2)
         max_action = np.array([action_space[a] for a in np.argmax(Q,axis=2).flatten()]).reshape((ny,nx))
-        actor_policy = np.array([ self.act(s) for s in raw_states]).reshape(ny,nx,self.action_size)
+        actor_policy = np.array([
+                self.preprocess_action(self.act(s)) if self.do_preprocessing else self.act(s)
+                for s in raw_states]).reshape(ny,nx,self.action_size)
         action_gradients = self.critic_local.get_action_gradients(
             [preprocessed_states,actor_policy.reshape(nx*ny, self.action_size),0])[0].reshape(ny,nx,self.action_size)
 

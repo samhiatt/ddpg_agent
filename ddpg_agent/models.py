@@ -64,17 +64,21 @@ class Actor:
 
         if self.activation=='tanh':
             # Add final output layer with tanh activation with [-1, 1] output
-            raw_actions = layers.Dense(units=self.action_size, activation='tanh', name='raw_actions',
+            # raw_actions = layers.Dense(units=self.action_size, activation='tanh', name='raw_actions',
+            #                            activity_regularizer=regularizers.l2(self.activity_l2_reg))(net)
+            # actions = layers.Lambda(lambda x: ((x+1)/2. * self.action_range) + self.action_low,
+            #     name='actions')(raw_actions)
+            actions = layers.Dense(units=self.action_size, activation='tanh', name='actions',
                                        activity_regularizer=regularizers.l2(self.activity_l2_reg))(net)
-            actions = layers.Lambda(lambda x: ((x+1)/2. * self.action_range) + self.action_low,
-                name='actions')(raw_actions)
         elif self.activation=='sigmoid':
             # Add final output layer with sigmoid activation
             raw_actions = layers.Dense(units=self.action_size, activation='sigmoid', name='raw_actions',
                                       activity_regularizer=regularizers.l2(self.activity_l2_reg))(net)
             # Scale [0, 1] output for each action dimension to proper range
-            actions = layers.Lambda(lambda x: (x * self.action_range) + self.action_low,
-                name='actions')(raw_actions)
+            # actions = layers.Lambda(lambda x: (x * self.action_range) + self.action_low,
+            #     name='actions')(raw_actions)
+            # Scale to -1 to 0 (assume all preprocessing done already by agent)
+            actions = layers.Lambda(lambda x: (x * 2) -1, name='actions')(raw_actions)
         else:
             raise "Expected 'activation' to be one of: 'tanh', or 'sigmoid'."
 
@@ -87,7 +91,8 @@ class Actor:
         #     - low or high action values
         #     -
         if self.output_action_regularizer:
-            mid_action = (self.action_high-self.action_low)/2.
+            # mid_action = (self.action_high-self.action_low)/2.
+            mid_action = 0
             loss += self.output_action_regularizer*K.mean(K.square(actions-mid_action))
         # if self.output_action_regularizer:
         #     loss += self.output_action_regularizer*K.sum(K.square(net))
