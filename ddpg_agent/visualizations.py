@@ -311,7 +311,8 @@ def plot_quadcopter_episode(episode):
     reward_ax = fig.add_subplot(left_col[0], title="Step Rewards")
     reward_ax.bar(range(len(episode.rewards)), episode.rewards,
                       color=[reward_cmap.to_rgba(r) for r in episode.rewards])
-    reward_ax.set_yscale("symlog")
+    #reward_ax.set_yscale("symlog")
+    reward_ax.set_ylim(-2, np.max(episode.rewards) )
 
     pos_ax = fig.add_subplot(left_col[1:], projection='3d', title="Flight Path")
     pos_scatter = pos_ax.scatter(env_state['x'], env_state['y'], env_state['z'],
@@ -328,7 +329,7 @@ def plot_quadcopter_episode(episode):
 #         a_colors=['darkorange','darkgoldenrod','peru','lightsalmon']
         ax = fig.add_subplot(actions_grid[i], ylim=(-100,1000), xlabel='step', yticks=[0,400,800])
 #         if i==0: ax.set_title('Actions')
-        ax.plot([a[i] for a in episode.raw_actions], color='gray', label='policy action')
+        ax.plot([a[i] for a in episode.raw_actions], color='#1f77b4', label='policy action')
         ax.plot([a[i] for a in episode.actions], label='action + noise', color='red')#a_colors[i])
         if i==0: ax.legend(loc='lower center', bbox_to_anchor=(.5,.9))
     for i in range(4): plot_action(i)
@@ -384,6 +385,7 @@ def plot_quadcopter_episode(episode):
 #     X=np.arange(len(step_arr)*3)/3
     rot_ax.plot(fix_circular(env_state['phi']), label='phi', color='#1f77b4', marker='.', lw=.1)
     rot_ax.plot(fix_circular(env_state['theta']), label='theta', color='#ff7f0e', marker='.', lw=.1)
+    rot_ax.set_ylim(-math.pi, math.pi)
 #     rot_ax.plot(phis[:,2], label='phi')
 #     rot_ax.plot(thetas[:,2], label='theta')
 #     #rot_ax.plot(X,psis.flatten(), color='darkgoldenrod', label='psi')

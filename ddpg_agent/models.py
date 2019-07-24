@@ -86,14 +86,20 @@ class Actor:
         action_gradients = layers.Input(shape=(self.action_size,))
         loss = K.mean(-action_gradients * actions)
 
+        # These next two lines thanks to https://gist.github.com/kkweon/a82980f3d60ffce1d69ad6da8af0e124
+        for l2_regularizer_loss in self.model.losses:
+            loss += l2_regularizer_loss
+
         # Incorporate any additional losses here (e.g. from regularizers)
-        # TODO: Try adding regularizers to penalize:
-        #     - low or high action values
-        #     -
+
+        # These next two lines thanks to https://gist.github.com/kkweon/a82980f3d60ffce1d69ad6da8af0e124
+        for l2_regularizer_loss in self.model.losses:
+            loss += l2_regularizer_loss
+
         if self.output_action_regularizer:
             # mid_action = (self.action_high-self.action_low)/2.
-            mid_action = 0
-            loss += self.output_action_regularizer*K.mean(K.square(actions-mid_action))
+            # loss += self.output_action_regularizer*K.mean(K.square(actions-mid_action))
+            loss += self.output_action_regularizer*K.mean(K.square(actions))
         # if self.output_action_regularizer:
         #     loss += self.output_action_regularizer*K.sum(K.square(net))
         # if self.output_action_regularizer:

@@ -8,6 +8,7 @@ from collections import namedtuple
 from hyperopt import STATUS_OK
 import json
 import sys
+import warnings; warnings.simplefilter('ignore')
 
 class Task():
     def __init__(self, init_pose=None, init_velocities=None,

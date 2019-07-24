@@ -224,10 +224,8 @@ class DDPG():
         if self.do_preprocessing:
             next_state = self.preprocess_state(next_state)
             action = self.preprocess_action(action)
-#             reward = self.preprocess_reward(reward)
-        # import pdb; pdb.set_trace()
+
         self.memory.add(self.last_state, action, reward, next_state, done)
-        # TODO: scale actions and rewards
 
         # Learn, if enough samples are available in memory
         if learn or (len(self.memory) > self.batch_size and (self.train_during_episode or done)):
@@ -331,6 +329,13 @@ class DDPG():
                     gen_q_a_frames_every_n_steps=gen_q_a_frames_every_n_steps,
                     learn_from_test=learn_from_test, )
 
+    def act_with_noise(self, eps, next_state):
+        action_range = self.env.action_space.high - self.env.action_space.low
+        raw_action = self.act(next_state)
+        noise_sample = action_range * self.noise.sample() * max(0,eps) # some noise for exploration
+        action = list(np.clip(raw_action + noise_sample, self.env.action_space.low, self.env.action_space.high))
+        return action, raw_action
+
     def run_episode(self, action_repeat=1, eps=0, train=False, gen_q_a_frames_every_n_steps=0,
                     learn_from_test=False, act_random=False, ):
         next_state = self.reset_episode()
@@ -338,14 +343,11 @@ class DDPG():
         else: episode_history = self.history.new_test_episode(self.episodes,eps)
         q_a_frame = None
         while True:
-            action_range = self.env.action_space.high - self.env.action_space.low
-            noise_sample = action_range * self.noise.sample() * max(0,eps) # some noise for exploration
-            raw_action = np.zeros(self.action_size)+(self.env.action_space.high - self.env.action_space.low)/2.
-            #action = list(np.clip(noise_sample, self.env.action_space.low, self.env.action_space.high))
-            if not act_random:
-                raw_action = self.act(next_state)
-            action = list(np.clip(raw_action + noise_sample, self.env.action_space.low, self.env.action_space.high))
-
+            if act_random:
+                action, raw_action = np.random.uniform(self.action_low,self.action_high,self.action_size),\
+                                     np.zeros(self.action_size)
+            else:
+                action, raw_action = self.act_with_noise(eps, next_state)
             sum_rewards=0
             # Repeat action `action_repeat` times, summing up rewards
             for i in range(action_repeat):
