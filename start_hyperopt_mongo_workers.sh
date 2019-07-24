@@ -3,7 +3,7 @@
 start_threads() {
 	echo "Starting $1 hyperopt-mongo-worker threads..."
 	for i in `seq 1 $1`; do
-		PYTHONPATH=$PYTHONPATH:./ddpg_agent hyperopt-mongo-worker --mongo localhost:27017/hyperopt --reserve-timeout=36000000 --workdir=/tmp >> hyperopt-mongo-worker-$i.log 2>&1  &
+		PYTHONPATH=$PYTHONPATH:./ hyperopt-mongo-worker --mongo localhost:27017/hyperopt --reserve-timeout=36000000 --workdir=/tmp >> hyperopt-mongo-worker-$i.log 2>&1  &
 	done
 }
 

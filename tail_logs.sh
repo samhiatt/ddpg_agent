@@ -6,5 +6,6 @@ fi
 
 while [ 1 ]; do
   for file in `ls hyperopt-mongo-worker-*.log`; do tail -n$n $file ; echo ; done
+  echo
   sleep 1
 done
