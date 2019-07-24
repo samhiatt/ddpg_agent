@@ -115,7 +115,7 @@ def evaluator(params):
         'loss_variance': np.var(losses),
         'max_score': np.max(learning_curves),
         # 'scores': scores,
-        'params': dict(params),
+        'params': dict(params._asdict()),
         # 'attachments':{
         #     },
         'learning_curves':learning_curves,
