@@ -6,7 +6,8 @@ class Actor:
 
     def __init__(self, state_size, action_size, action_low, action_high, learn_rate,
                  activation_fn, input_bn_momentum, bn_momentum, relu_alpha, l2_reg,
-                 dropout, hidden_layer_sizes, activity_l2_reg, output_action_regularizer):
+                 dropout, hidden_layer_sizes, activity_l2_reg, output_action_regularizer,
+                 output_action_variance_regularizer ):
         """Initialize parameters and build model.
 
         Params
@@ -38,6 +39,7 @@ class Actor:
         self.l2_reg = l2_reg
         self.activity_l2_reg = activity_l2_reg
         self.output_action_regularizer=output_action_regularizer
+        self.output_action_variance_regularizer=output_action_variance_regularizer
         self.dropout = dropout
         self.hidden_layer_sizes = hidden_layer_sizes
 
@@ -64,31 +66,27 @@ class Actor:
 
         if self.activation=='tanh':
             # Add final output layer with tanh activation with [-1, 1] output
-            # raw_actions = layers.Dense(units=self.action_size, activation='tanh', name='raw_actions',
-            #                            activity_regularizer=regularizers.l2(self.activity_l2_reg))(net)
-            # actions = layers.Lambda(lambda x: ((x+1)/2. * self.action_range) + self.action_low,
-            #     name='actions')(raw_actions)
-            actions = layers.Dense(units=self.action_size, activation='tanh', name='actions',
+            raw_actions = layers.Dense(units=self.action_size, activation='tanh', name='raw_actions',
                                        activity_regularizer=regularizers.l2(self.activity_l2_reg))(net)
+            actions = layers.Lambda(lambda x: ((x+1)/2. * self.action_range) + self.action_low,
+                name='actions')(raw_actions)
+            # actions = layers.Dense(units=self.action_size, activation='tanh', name='actions',
+            #                            activity_regularizer=regularizers.l2(self.activity_l2_reg))(net)
         elif self.activation=='sigmoid':
             # Add final output layer with sigmoid activation
             raw_actions = layers.Dense(units=self.action_size, activation='sigmoid', name='raw_actions',
                                       activity_regularizer=regularizers.l2(self.activity_l2_reg))(net)
             # Scale [0, 1] output for each action dimension to proper range
-            # actions = layers.Lambda(lambda x: (x * self.action_range) + self.action_low,
-            #     name='actions')(raw_actions)
+            actions = layers.Lambda(lambda x: (x * self.action_range) + self.action_low,
+                name='actions')(raw_actions)
             # Scale to -1 to 0 (assume all preprocessing done already by agent)
-            actions = layers.Lambda(lambda x: (x * 2) -1, name='actions')(raw_actions)
+            # actions = layers.Lambda(lambda x: (x * 2) -1, name='actions')(raw_actions)
         else:
             raise "Expected 'activation' to be one of: 'tanh', or 'sigmoid'."
 
         self.model = models.Model(inputs=states, outputs=actions)
         action_gradients = layers.Input(shape=(self.action_size,))
         loss = K.mean(-action_gradients * actions)
-
-        # These next two lines thanks to https://gist.github.com/kkweon/a82980f3d60ffce1d69ad6da8af0e124
-        for l2_regularizer_loss in self.model.losses:
-            loss += l2_regularizer_loss
 
         # Incorporate any additional losses here (e.g. from regularizers)
 
@@ -102,8 +100,8 @@ class Actor:
             loss += self.output_action_regularizer*K.mean(K.square(actions))
         # if self.output_action_regularizer:
         #     loss += self.output_action_regularizer*K.sum(K.square(net))
-        # if self.output_action_regularizer:
-        #     loss += self.output_action_regularizer*K.var(net)
+        if self.output_action_variance_regularizer:
+            loss += self.output_action_variance_regularizer*K.var(net)
         # if self.output_action_regularizer:
         #     loss += self.output_action_regularizer*K.mean(K.square(raw_actions))
 

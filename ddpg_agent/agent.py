@@ -16,14 +16,14 @@ class DDPG():
     """Reinforcement Learning agent that learns using DDPG."""
     def __init__(self, env, train_during_episode=True,
                  discount_factor=.999,
-                 tau_actor=.2, tau_critic=.2,
-                 lr_actor=.0001, lr_critic=.005,
-                 bn_momentum_actor=.9, bn_momentum_critic=.9,
+                 tau_actor=.5, tau_critic=.5,
+                 lr_actor=.001, lr_critic=.001,
+                 bn_momentum_actor=0, bn_momentum_critic=0,
                  ou_mu=0, ou_theta=.1, ou_sigma=1,
                  activation_fn_actor='sigmoid',
                  replay_buffer_size=10000, replay_batch_size=64,
-                 l2_reg_actor=.01, l2_reg_critic=.01,
-                 relu_alpha_actor=.01, relu_alpha_critic=.01,
+                 l2_reg_actor=0, l2_reg_critic=0,
+                 relu_alpha_actor=0, relu_alpha_critic=0,
                  dropout_actor=0, dropout_critic=0,
                  hidden_layer_sizes_actor=[32,64,32],
                  hidden_layer_sizes_critic=[[32,64],[32,64]],
@@ -33,6 +33,8 @@ class DDPG():
                  input_bn_momentum_critic=0,
                  activity_l2_reg=0,
                  output_action_regularizer=0,
+                 output_action_variance_regularizer=0,
+                 normalize_rewards=True,
                 ):
 
         self.env = env
@@ -56,19 +58,24 @@ class DDPG():
 
         self.train_during_episode = train_during_episode
 
+        action_low, action_high = (-1,1) if do_preprocessing else \
+                                  (self.env.action_space.low, self.env.action_space.high)
+
         # Actor (Policy) Model
-        self.actor_local = Actor(self.state_size, self.action_size, self.env.action_space.low,
-                self.env.action_space.high, activation_fn=activation_fn_actor, relu_alpha=relu_alpha_actor,
+        self.actor_local = Actor(self.state_size, self.action_size, action_low,
+                action_high, activation_fn=activation_fn_actor, relu_alpha=relu_alpha_actor,
                 bn_momentum=bn_momentum_actor, learn_rate=lr_actor, l2_reg=l2_reg_actor,
                 dropout=dropout_actor, hidden_layer_sizes=hidden_layer_sizes_actor,
                 input_bn_momentum=input_bn_momentum_actor, activity_l2_reg=activity_l2_reg,
-                output_action_regularizer=output_action_regularizer)
-        self.actor_target = Actor(self.state_size, self.action_size, self.env.action_space.low,
-                self.env.action_space.high, activation_fn=activation_fn_actor, relu_alpha=relu_alpha_actor,
+                output_action_regularizer=output_action_regularizer,
+                output_action_variance_regularizer=output_action_variance_regularizer)
+        self.actor_target = Actor(self.state_size, self.action_size, action_low,
+                action_high, activation_fn=activation_fn_actor, relu_alpha=relu_alpha_actor,
                 bn_momentum=bn_momentum_actor, learn_rate=lr_actor, l2_reg=l2_reg_actor,
                 dropout=dropout_actor, hidden_layer_sizes=hidden_layer_sizes_actor,
                 input_bn_momentum=input_bn_momentum_actor, activity_l2_reg=activity_l2_reg,
-                output_action_regularizer=output_action_regularizer )
+                output_action_regularizer=output_action_regularizer,
+                output_action_variance_regularizer=output_action_variance_regularizer)
 
         # Critic (Q-Value) Model
         self.critic_local = Critic(self.state_size, self.action_size, l2_reg=l2_reg_critic,
@@ -120,6 +127,8 @@ class DDPG():
         self.hidden_layer_sizes_critic = hidden_layer_sizes_critic
         self.activity_l2_reg = activity_l2_reg
         self.output_action_regularizer = output_action_regularizer
+        self.output_action_variance_regularizer = output_action_variance_regularizer
+        self.normalize_rewards = normalize_rewards
 
         self.tau_actor = tau_actor
         self.tau_critic = tau_critic
@@ -170,6 +179,8 @@ class DDPG():
             input_bn_momentum_critic=self.input_bn_momentum_critic,
             activity_l2_reg=self.activity_l2_reg,
             output_action_regularizer=self.output_action_regularizer,
+            output_action_variance_regularizer=self.output_action_variance_regularizer,
+            normalize_rewards=self.normalize_rewards,
         )))
 
     def set_episode_callback(self, episode_callback=None):
@@ -267,8 +278,9 @@ class DDPG():
         # Normalize rewards
         # https://datascience.stackexchange.com/questions/20098/
         # why-do-we-normalize-the-discounted-rewards-when-doing-policy-gradient-reinforcem
-        rewards -= self.memory.reward_mean
-        rewards /= np.sqrt(self.memory.reward_var)
+        if self.normalize_rewards:
+            rewards -= self.memory.reward_mean
+            rewards /= np.sqrt(self.memory.reward_var)
 
         # Compute Q targets for current states and train critic model (local)
         Q_targets = rewards + self.gamma * Q_targets_next * (1 - dones)
@@ -442,7 +454,8 @@ class DDPG():
         Q_std = np.std(Q,axis=2)
         max_action = np.array([action_space[a] for a in np.argmax(Q,axis=2).flatten()]).reshape((ny,nx))
         actor_policy = np.array([
-                self.preprocess_action(self.act(s)) if self.do_preprocessing else self.act(s)
+                self.act(s)
+                # self.preprocess_action(self.act(s)) if self.do_preprocessing else self.act(s)
                 for s in raw_states]).reshape(ny,nx,self.action_size)
         action_gradients = self.critic_local.get_action_gradients(
             [preprocessed_states,actor_policy.reshape(nx*ny, self.action_size),0])[0].reshape(ny,nx,self.action_size)
