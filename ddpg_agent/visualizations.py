@@ -203,7 +203,8 @@ def visualize_quad_agent(agent, q_a_frames_spec=None):
         state = agent.last_state
         ydim = q_a_frames_spec.y_dim
         xdim = q_a_frames_spec.x_dim
-        state=agent.transform_state(agent.last_state)
+        # state=agent.transform_state(agent.last_state)
+        state=agent.last_state
         x=state[xdim]
         y=state[ydim]
         ax.plot(x, y, 'ro')
@@ -249,14 +250,14 @@ def visualize_quad_agent(agent, q_a_frames_spec=None):
         q_a_frames_spec = agent.q_a_frames_spec
     q_a_frame = agent.get_q_a_frames(q_a_frames_spec)
 
-    title = "Agent at episode %i, step %i"%(
-                agent.history.get_training_episode_for_step(q_a_frame.step_idx-1).episode_idx,
-                q_a_frame.step_idx )
+    # title = "Agent at episode %i, step %i"%(
+    #             agent.history.get_training_episode_for_step(q_a_frame.step_idx-1).episode_idx,
+    #             q_a_frame.step_idx )
 
     xs = q_a_frames_spec.xs
     ys = q_a_frames_spec.ys
     fig = plt.figure(figsize=(13,7))
-    fig.suptitle(title)
+    # fig.suptitle(title)
     main_grid = gridspec.GridSpec(2, 4, figure=fig, wspace=.3, left=.05, right=.98)
 
     q_subplot(main_grid[0,0], q_a_frame.Q_max, title="Q max")
@@ -333,39 +334,6 @@ def plot_quadcopter_episode(episode):
         ax.plot([a[i] for a in episode.actions], label='action + noise', color='red')#a_colors[i])
         if i==0: ax.legend(loc='lower center', bbox_to_anchor=(.5,.9))
     for i in range(4): plot_action(i)
-
-#     def join_circular(arr):
-#         a=copy.copy(arr.flatten())
-# #         for i in range(1,len(a)):
-# #             if np.abs(a[i-1]-a[i]) > math.pi:
-# #                 if a[i] < -math.pi: a[i] += 2*math.pi
-# #                 if a[i] > math.pi: a[i] -= 2*math.pi
-#         for i in range(len(a)):
-#             if a[i]<0: a[i] += math.pi
-#         return a
-
-#     def plot_state(ax,i):
-#         s_colors=['slateblue','royalblue','magenta','#1f77b4','#ff7f0e','powderblue']
-#         s_labels=['x pos','y pos','altitude','roll', 'pitch', 'yaw']
-#         s_color_shades=[[],[],[],
-#                         ['steelblue','skyblue','powderblue'],
-#                         ['darkgreen','forestgreen','lightgreen'],
-#                         ['darkgoldenrod','goldenrod','wheat']]
-# #         ax.plot(np.array([s[i] for s in episode.states]).reshape(-1,1),
-# #                 color=s_color_shades[i][0], label=s_labels[i])
-# #         ax.plot(np.array([s[i+6] for s in episode.states]).reshape(-1,1),
-# #                 color=s_color_shades[i][1])
-# #         ax.plot(np.array([s[i+12] for s in episode.states]).reshape(-1,1),
-# #                 color=s_color_shades[i][2])
-#         X=np.arange(len(episode.states)*3)/3
-#         ax.plot(X,join_circular(np.array(list(zip(
-#                 [s[i] for s in episode.states],
-#                 [s[i+6] for s in episode.states],
-#                 [s[i+12] for s in episode.states]))).flatten()),
-#             color=s_colors[i],
-#             marker='x',
-#             lw=.1,
-#             label=s_labels[i])
 
     v_ax = fig.add_subplot(right_col_grid[1,0], title="Velocity", xlabel='step')
     v_ax.plot(env_state['x_velocity'], label="x")
