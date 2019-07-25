@@ -141,10 +141,10 @@ class Task():
 
         # If episode is over and we're not hovering within 10 of goal height,
         # then we must have flown off into outer space. Let's count this as a crash.
-        if done:
-            horiz_dist, vert_dist = self.get_horiz_vert_distance_from_goal()
-            if np.abs(vert_dist)>10:
-                reward -= 1000
+        # if done:
+        #     horiz_dist, vert_dist = self.get_horiz_vert_distance_from_goal()
+        #     if np.abs(vert_dist)>10:
+        #         reward -= 1000
 
         # Punish and end episode for crashing
         # if self.sim.pose[2]<=0:
