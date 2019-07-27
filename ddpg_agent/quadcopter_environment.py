@@ -69,6 +69,8 @@ class Task():
     #             vert_distance_from_goal <= self.vert_dist_thresh
 
     def get_full_state(self):
+        """ Used by agent to get attributes of environment state that aren't included in the agent's
+            observation space but are needed for visualizing the episode. """
         return QuadcopterState( *self.sim.pose, *self.sim.v, *self.sim.angular_v,
                                 *self.sim.linear_accel, *self.sim.angular_accels )
 
@@ -97,6 +99,13 @@ class Task():
         if vert_dist<10 and horiz_dist<10:
             reward += 10-vert_dist
             reward += .1*(10-horiz_dist)
+
+        # Punish for high roll/yaw, reward for staying upright
+        # reward += .1*(.5-np.sin(self.sim.pose[3]/2))
+        # reward += .1*(.5-np.sin(self.sim.pose[4]/2))
+
+        # Punish for high rotor speeds
+        # reward -= .025*sum(np.abs(self.sim.prop_wind_speed))
 
         # Punish for high angular velocity
         # reward -= (self.sim.angular_v[0]/30.)**2 + (self.sim.angular_v[1]/30.)**2
@@ -162,19 +171,60 @@ class Task():
 
         return next_state, reward, done, None
 
+class HoverTask():
+    """HoverTask (environment) that defines the goal and provides feedback to the agent."""
+    def __init__(self, init_pose=None, init_velocities=None,
+                init_angle_velocities=None, runtime=10., ):
+        # Simulation
+        self.sim = PhysicsSim(init_pose, init_velocities, init_angle_velocities, runtime)
+        self.action_repeat = 3
+
+        # 6 dims for position/orientation, 6 dims for velocities, 6 dims for accelerations
+        self.state_size = 18
+        self.observation_space = Space(
+            np.hstack(( self.sim.lower_bounds, [-math.pi]*3, [float('-inf')]*6, [float('-inf')]*6)),
+            np.hstack(( self.sim.upper_bounds, [math.pi]*3, [float('inf')]*6, [float('inf')]*6)) )
+
+        self.action_space = Space([0,0,0,0], [900,900,900,900])
+        self.action_size = 4
+
+    def get_full_state(self):
+        """ Used by agent to get attributes of environment state that aren't included in the agent's
+            observation space but are needed for visualizing the episode. """
+        return QuadcopterState( *self.sim.pose, *self.sim.v, *self.sim.angular_v,
+                                *self.sim.linear_accel, *self.sim.angular_accels )
+
+    def get_reward(self):
+        """ Goal is to hover. Reward if abs(velocity) is < 1, and punish if > 1.
+            Reward/punish both for vertical and horizontal movement. """
+        # Proportional reward if vertical velocity < 1, otherwise proportional punishment
+        reward = 1-np.abs(self.sim.v[2])
+        # Proportional reward if horizontal velocity < 1, otherwise proportional punishment
+        reward += 1-np.sqrt(self.sim.v[0]**2+self.sim.v[1]**2)
+        return reward
+
+    def step(self, rotor_speeds):
+        """Uses action to obtain next state, reward, done."""
+        reward = 0
+        # pose_all = []
+        for _ in range(self.action_repeat):
+            done = self.sim.next_timestep(rotor_speeds) # update the sim pose and velocities
+            reward += self.get_reward()
+#             pose_all.append(self.sim.pose)
+        # 6 dims for position/orientation, 6 dims for velocities, 6 dims for accelerations
+        next_state = np.hstack(( self.sim.pose,
+                                 self.sim.v, self.sim.angular_v,
+                                 self.sim.linear_accel, self.sim.angular_accels ))
+        return next_state, reward, done, None
+
     def reset(self):
         """Reset the sim to start a new episode."""
-        self.sim.reset()
-        # state = list(np.concatenate([self.sim.pose] * self.action_repeat)) + \
-        #         list(self.sim.v) + list(self.sim.angular_v)
-        # state = list(np.hstack((self.sim.pose, self.sim.v, self.sim.angular_v)))*self.action_repeat
 
+        self.sim.reset()
         # 6 dims for position/orientation, 6 dims for velocities, 6 dims for accelerations
         state = np.hstack(( self.sim.pose,
                              self.sim.v, self.sim.angular_v,
                              self.sim.linear_accel, self.sim.angular_accels ))
-
-        # self.steps_within_goal = 0
         return state
 
 class Space():
