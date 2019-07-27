@@ -207,11 +207,12 @@ def visualize_quad_agent(agent, q_a_frames_spec=None):
         state=agent.last_state
         # x=state[xdim]
         # y=state[ydim]
-        x, y = fix_circular([state[xdim], state[ydim]])
+        # x, y = fix_circular([state[xdim], state[ydim]])
+        x = fix_circular([state[xdim]]) if xdim in [3,4] else state[xdim]
+        y = fix_circular([state[ydim]]) if ydim in [3,4] else state[ydim]
         ax.plot(x, y, 'ro')
 
     def q_subplot(gs,im_arr,title):
-        # TODO: Show current state as a point on plot
         ax = fig.add_subplot(gs)
         im = ax.pcolor(xs,ys,im_arr)
         show_current_pos(ax)
@@ -291,8 +292,6 @@ step_keys = ['step_idx','episode_idx',
 Step=namedtuple("Step", step_keys)
 
 def fix_circular(arr):
-    # Not really sure why this works, but "folding" negative values back onto the positive ones
-    # fixes the visualizations of position angles.
     a=copy.copy(arr)
     for i in range(len(a)):
         if a[i]>math.pi: a[i]-=2*math.pi
