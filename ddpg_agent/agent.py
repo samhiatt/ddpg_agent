@@ -31,6 +31,7 @@ class DDPG():
                  do_preprocessing=True,
                  input_bn_momentum_actor=0,
                  input_bn_momentum_critic=0,
+                 activity_l1_reg=0,
                  activity_l2_reg=0,
                  output_action_regularizer=0,
                  output_action_variance_regularizer=0,
@@ -66,14 +67,16 @@ class DDPG():
                 action_high, activation_fn=activation_fn_actor, relu_alpha=relu_alpha_actor,
                 bn_momentum=bn_momentum_actor, learn_rate=lr_actor, l2_reg=l2_reg_actor,
                 dropout=dropout_actor, hidden_layer_sizes=hidden_layer_sizes_actor,
-                input_bn_momentum=input_bn_momentum_actor, activity_l2_reg=activity_l2_reg,
+                input_bn_momentum=input_bn_momentum_actor,
+                activity_l1_reg=activity_l1_reg, activity_l2_reg=activity_l2_reg,
                 output_action_regularizer=output_action_regularizer,
                 output_action_variance_regularizer=output_action_variance_regularizer)
         self.actor_target = Actor(self.state_size, self.action_size, action_low,
                 action_high, activation_fn=activation_fn_actor, relu_alpha=relu_alpha_actor,
                 bn_momentum=bn_momentum_actor, learn_rate=lr_actor, l2_reg=l2_reg_actor,
                 dropout=dropout_actor, hidden_layer_sizes=hidden_layer_sizes_actor,
-                input_bn_momentum=input_bn_momentum_actor, activity_l2_reg=activity_l2_reg,
+                input_bn_momentum=input_bn_momentum_actor,
+                activity_l1_reg=activity_l1_reg, activity_l2_reg=activity_l2_reg,
                 output_action_regularizer=output_action_regularizer,
                 output_action_variance_regularizer=output_action_variance_regularizer)
 
@@ -125,6 +128,7 @@ class DDPG():
         self.relu_alpha_critic = relu_alpha_critic
         self.hidden_layer_sizes_actor = hidden_layer_sizes_actor
         self.hidden_layer_sizes_critic = hidden_layer_sizes_critic
+        self.activity_l1_reg = activity_l1_reg
         self.activity_l2_reg = activity_l2_reg
         self.output_action_regularizer = output_action_regularizer
         self.output_action_variance_regularizer = output_action_variance_regularizer
@@ -177,6 +181,7 @@ class DDPG():
             hidden_layer_sizes_critic=self.hidden_layer_sizes_critic,
             input_bn_momentum_actor=self.input_bn_momentum_actor,
             input_bn_momentum_critic=self.input_bn_momentum_critic,
+            activity_l1_reg=self.activity_l1_reg,
             activity_l2_reg=self.activity_l2_reg,
             output_action_regularizer=self.output_action_regularizer,
             output_action_variance_regularizer=self.output_action_variance_regularizer,
@@ -358,6 +363,10 @@ class DDPG():
             if act_random:
                 action, raw_action = np.random.uniform(self.action_low,self.action_high,self.action_size),\
                                      np.zeros(self.action_size)
+                # action_range = (self.action_high-self.action_low)
+                # action_mid = self.action_low+action_range/2
+                # action, raw_action = np.random.normal(action_mid, action_range/6, self.action_size),\
+                #                      np.zeros(self.action_size)
             else:
                 action, raw_action = self.act_with_noise(eps, next_state)
             sum_rewards=0
@@ -454,11 +463,13 @@ class DDPG():
         Q_std = np.std(Q,axis=2)
         max_action = np.array([action_space[a] for a in np.argmax(Q,axis=2).flatten()]).reshape((ny,nx))
         actor_policy = np.array([
-                self.act(s)
-                # self.preprocess_action(self.act(s)) if self.do_preprocessing else self.act(s)
+                #self.act(s)
+                self.preprocess_action(self.act(s)) if self.do_preprocessing else self.act(s)
                 for s in raw_states]).reshape(ny,nx,self.action_size)
+        preprocessed_policy = np.array([self.preprocess_action(a)
+                                for a in actor_policy.reshape(nx*ny, self.action_size)])
         action_gradients = self.critic_local.get_action_gradients(
-            [preprocessed_states,actor_policy.reshape(nx*ny, self.action_size),0])[0].reshape(ny,nx,self.action_size)
+            [preprocessed_states,preprocessed_policy,0])[0].reshape(ny,nx,self.action_size)
 
         return namedtuple( 'q_a_frames',[
                 'step_idx', 'episode_idx', 'Q_max', 'Q_std', 'max_action', 'action_gradients', 'actor_policy'

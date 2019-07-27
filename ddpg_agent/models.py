@@ -6,8 +6,8 @@ class Actor:
 
     def __init__(self, state_size, action_size, action_low, action_high, learn_rate,
                  activation_fn, input_bn_momentum, bn_momentum, relu_alpha, l2_reg,
-                 dropout, hidden_layer_sizes, activity_l2_reg, output_action_regularizer,
-                 output_action_variance_regularizer ):
+                 dropout, hidden_layer_sizes, activity_l2_reg, activity_l1_reg,
+                 output_action_regularizer, output_action_variance_regularizer ):
         """Initialize parameters and build model.
 
         Params
@@ -37,6 +37,7 @@ class Actor:
         self.bn_momentum = bn_momentum
         self.relu_alpha = relu_alpha
         self.l2_reg = l2_reg
+        self.activity_l1_reg = activity_l1_reg
         self.activity_l2_reg = activity_l2_reg
         self.output_action_regularizer=output_action_regularizer
         self.output_action_variance_regularizer=output_action_variance_regularizer
@@ -67,7 +68,7 @@ class Actor:
         if self.activation=='tanh':
             # Add final output layer with tanh activation with [-1, 1] output
             raw_actions = layers.Dense(units=self.action_size, activation='tanh', name='raw_actions',
-                                       activity_regularizer=regularizers.l2(self.activity_l2_reg))(net)
+                    activity_regularizer=regularizers.l1_l2(self.activity_l1_reg, self.activity_l2_reg))(net)
             actions = layers.Lambda(lambda x: ((x+1)/2. * self.action_range) + self.action_low,
                 name='actions')(raw_actions)
             # actions = layers.Dense(units=self.action_size, activation='tanh', name='actions',
@@ -102,8 +103,6 @@ class Actor:
         #     loss += self.output_action_regularizer*K.sum(K.square(net))
         if self.output_action_variance_regularizer:
             loss += self.output_action_variance_regularizer*K.var(net)
-        # if self.output_action_regularizer:
-        #     loss += self.output_action_regularizer*K.mean(K.square(raw_actions))
 
         optimizer = optimizers.Adam(lr=self.learn_rate)
         updates_op = optimizer.get_updates(params=self.model.trainable_weights, loss=loss)
