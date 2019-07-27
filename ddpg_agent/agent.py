@@ -444,6 +444,8 @@ class DDPG():
 # #             s[y_dim]=y
 #             adjust_state_position(x_dim,x)
 #             adjust_state_position(y_dim,y)
+            s[x_dim]=x
+            s[y_dim]=y
             return s
         raw_states = np.array([[ get_state(x,y) for x in xs ] for y in ys ]).reshape(nx*ny, self.state_size)
 
@@ -463,8 +465,9 @@ class DDPG():
         Q_std = np.std(Q,axis=2)
         max_action = np.array([action_space[a] for a in np.argmax(Q,axis=2).flatten()]).reshape((ny,nx))
         actor_policy = np.array([
-                #self.act(s)
-                self.preprocess_action(self.act(s)) if self.do_preprocessing else self.act(s)
+                self.act(s)
+                #self.preprocess_action(self.act(s))
+                if self.do_preprocessing else self.act(s)
                 for s in raw_states]).reshape(ny,nx,self.action_size)
         preprocessed_policy = np.array([self.preprocess_action(a)
                                 for a in actor_policy.reshape(nx*ny, self.action_size)])
