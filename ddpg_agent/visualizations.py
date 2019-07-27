@@ -205,8 +205,9 @@ def visualize_quad_agent(agent, q_a_frames_spec=None):
         xdim = q_a_frames_spec.x_dim
         # state=agent.transform_state(agent.last_state)
         state=agent.last_state
-        x=state[xdim]
-        y=state[ydim]
+        # x=state[xdim]
+        # y=state[ydim]
+        x, y = fix_circular([state[xdim], state[ydim]])
         ax.plot(x, y, 'ro')
 
     def q_subplot(gs,im_arr,title):
@@ -240,7 +241,8 @@ def visualize_quad_agent(agent, q_a_frames_spec=None):
             cbax = get_cbar_ax(sgs[-1])
             ax = fig.add_subplot(sgs[:-1],xticks=[],yticks=[])
         im=ax.pcolor(xs,ys,q_a_frame.actor_policy[:,:,i],
-                     vmin=agent.env.action_space.low[i], vmax=agent.env.action_space.high[i] )
+                     vmin=agent.env.action_space.low[i], vmax=agent.env.action_space.high[i]
+                    )
         show_current_pos(ax)
         if i==0: ax.set_title(" "*42+"Policy")
         cb = plt.colorbar(im,ax=ax,cax=cbax)
@@ -288,6 +290,14 @@ step_keys = ['step_idx','episode_idx',
               ]
 Step=namedtuple("Step", step_keys)
 
+def fix_circular(arr):
+    # Not really sure why this works, but "folding" negative values back onto the positive ones
+    # fixes the visualizations of position angles.
+    a=copy.copy(arr)
+    for i in range(len(a)):
+        if a[i]>math.pi: a[i]-=2*math.pi
+    return a
+
 def plot_quadcopter_episode(episode):
     fig = plt.figure(figsize=(15,7))
     fig.suptitle("Episode %i, score: %.3f, epsilon: %.4g"%(episode.episode_idx, episode.score, episode.epsilon))
@@ -303,8 +313,11 @@ def plot_quadcopter_episode(episode):
         min_reward=-1
         max_reward=1
     extreme=max(np.abs(min_reward),np.abs(max_reward))
-    reward_norm = mpl.colors.SymLogNorm(linthresh=1, linscale=3, vmin=-extreme, vmax=extreme)
-    reward_cmap = mpl.cm.ScalarMappable(norm=reward_norm, cmap=mpl.cm.get_cmap('RdYlGn'))
+    # reward_norm = mpl.colors.SymLogNorm(linthresh=1, linscale=3, vmin=-extreme, vmax=extreme)
+    # reward_cmap = mpl.cm.ScalarMappable(norm=reward_norm, cmap=mpl.cm.get_cmap('RdYlGn'))
+    reward_cmap = mpl.cm.ScalarMappable(
+                            norm=mpl.colors.Normalize(vmin=-extreme, vmax=extreme),
+                            cmap=mpl.cm.get_cmap('RdYlGn'))
     reward_cmap.set_array([])
 
     left_col = main_cols[0].subgridspec(3,1,hspace=.4)
@@ -313,7 +326,7 @@ def plot_quadcopter_episode(episode):
     reward_ax.bar(range(len(episode.rewards)), episode.rewards,
                       color=[reward_cmap.to_rgba(r) for r in episode.rewards])
     #reward_ax.set_yscale("symlog")
-    reward_ax.set_ylim(-2, np.max(episode.rewards) )
+    # reward_ax.set_ylim(-2, np.max(episode.rewards) )
 
     pos_ax = fig.add_subplot(left_col[1:], projection='3d', title="Flight Path")
     pos_scatter = pos_ax.scatter(env_state['x'], env_state['y'], env_state['z'],
@@ -340,14 +353,6 @@ def plot_quadcopter_episode(episode):
     v_ax.plot(env_state['y_velocity'], label="y")
     v_ax.plot(env_state['z_velocity'], color='magenta', label="z")
     v_ax.legend(loc='upper right')
-
-    def fix_circular(arr):
-        # Not really sure why this works, but "folding" negative values back onto the positive ones
-        # fixes the visualizations of position angles.
-        a=copy.copy(arr)
-        for i in range(len(a)):
-            if a[i]>math.pi: a[i]-=2*math.pi
-        return a
 
     rot_ax = fig.add_subplot(right_col_grid[1,1], title="Orientation", xlabel='step')
 #     X=np.arange(len(step_arr)*3)/3
