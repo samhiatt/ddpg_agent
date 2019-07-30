@@ -71,6 +71,10 @@ class Task():
     def reset(self):
         """Reset the sim to start a new episode."""
         self.sim.reset()
+
+        # Add some noise to the starting position
+        self.sim.pose[:3] += np.random.normal(0,3,3)
+        
         state = np.concatenate([self.sim.pose] * self.action_repeat)
         return state
 
