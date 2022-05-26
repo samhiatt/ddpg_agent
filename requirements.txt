@@ -1,5 +1,5 @@
 imageio_ffmpeg==0.3.0
-tensorflow==1.13.1
+tensorflow==2.7.2
 keras==2.2.4
 matplotlib==3.0.3
 gym==0.12.1
